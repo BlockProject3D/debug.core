@@ -1,11 +1,11 @@
 [package]
-name = "test"
+name = "bp3d-logger"
 version = "0.1.0"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2018"
-description = ""
+description = "A flexible Log implementation intended to be used with BP3D software."
 license = "BSD-3-Clause"
-repository = "https://gitlab.com/bp3d/test"
+repository = "https://gitlab.com/bp3d/logger"
 readme = "./README.MD"
 keywords = []
 categories = []
