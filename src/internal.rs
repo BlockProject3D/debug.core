@@ -152,6 +152,17 @@ impl LoggerImpl {
     }
 }
 
+fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>)
+{
+    let base_string = record.module_path().unwrap_or(record.target());
+    let target = base_string.find("::")
+        .map(|v| &base_string[..v])
+        .unwrap_or(base_string);
+    let module = base_string.find("::")
+        .map(|v| &base_string[(v + 2)..]);
+    (target, module)
+}
+
 impl Log for LoggerImpl
 {
     fn enabled(&self, _: &Metadata) -> bool {
@@ -159,10 +170,10 @@ impl Log for LoggerImpl
     }
 
     fn log(&self, record: &Record) {
-        let module = record.module_path().or_else(|| record.file()).unwrap_or("()");
+        let (target, module) = extract_target_module(record);
         let msg = LogMsg {
-            msg: format!("({}) {}: {}", "<time here>", module, record.args()),
-            target: record.target().into(),
+            msg: format!("({}) {}: {}", "<time here>", module.unwrap_or("main"), record.args()),
+            target: target.into(),
             level: record.level()
         };
         if self.enable_log_buffer.load(Ordering::Acquire) {
