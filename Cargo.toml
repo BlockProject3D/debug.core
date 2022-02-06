@@ -2,7 +2,7 @@
 name = "bp3d-logger"
 version = "0.1.0"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
-edition = "2018"
+edition = "2021"
 description = "A flexible Log implementation intended to be used with BP3D software."
 license = "BSD-3-Clause"
 repository = "https://gitlab.com/bp3d/logger"
@@ -13,6 +13,10 @@ categories = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+log = "0.4.14"
+bp3d-fs = { git = "https://gitlab.com/bp3d/fs.git" }
+crossbeam-channel = "0.5.2"
+lazy_static = "1.4.0"
 
 [features]
 

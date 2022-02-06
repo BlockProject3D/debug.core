@@ -26,3 +26,93 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+mod backend;
+mod internal;
+
+use bp3d_fs::dirs::App;
+use crossbeam_channel::Receiver;
+use log::Level;
+
+#[derive(Clone)]
+pub struct LogMsg {
+    msg: String,
+    target: String,
+    level: Level
+}
+
+pub type LogBuffer = Receiver<LogMsg>;
+
+pub trait ToApp<'a>
+{
+    fn to_app(self) -> App<'a>;
+}
+
+impl<'a> ToApp<'a> for App<'a>
+{
+    fn to_app(self) -> App<'a> {
+        self
+    }
+}
+
+impl<'a> ToApp<'a> for &'a str
+{
+    fn to_app(self) -> App<'a> {
+        App::new(self)
+    }
+}
+
+#[derive(Default)]
+pub struct Logger
+{
+    std: Option<backend::StdBackend>,
+    file: Option<backend::FileBackend>
+}
+
+impl Logger
+{
+    pub fn new() -> Logger {
+        Logger::default()
+    }
+
+    pub fn add_stdout(&mut self)
+    {
+        self.std = Some(backend::StdBackend::new(true))
+    }
+
+    pub fn add_file<'a, T: ToApp<'a>>(&mut self, app: T) -> Result<(), bp3d_fs::dirs::Error>
+    {
+        let app = app.to_app();
+        let logs = app.get_logs()?;
+        self.file = Some(backend::FileBackend::new(logs));
+        Ok(())
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref BP3D_LOGGER: internal::LoggerImpl = internal::LoggerImpl::new();
+}
+
+pub fn init(logger: Logger)
+{
+    let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
+    // (we can't do anything if there's already a logger set;
+    // unfortunately that is a limitation of the log crate)
+
+    BP3D_LOGGER.start_new_thread(logger); // Re-start the logging thread with the new configuration.
+}
+
+pub fn enable_log_buffer()
+{
+    BP3D_LOGGER.enable_log_buffer(true);
+}
+
+pub fn disable_log_buffer()
+{
+    BP3D_LOGGER.enable_log_buffer(false);
+    BP3D_LOGGER.clear_log_buffer();
+}
+
+pub fn get_log_buffer() -> LogBuffer
+{
+    BP3D_LOGGER.get_log_buffer()
+}
