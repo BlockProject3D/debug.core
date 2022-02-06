@@ -57,7 +57,7 @@ fn exec_commad(cmd: Command, logger: &mut Logger) -> bool
         Command::Terminate => true,
         Command::Flush => {
             if let Some(file) = &mut logger.file {
-                if let Err(e) = file.flush() { //TODO: find a way to display e
+                if let Err(e) = file.flush() {
                     let _ = log(logger.std.as_mut(),
                                 "bp3d-logger",
                                 &format!("Could not flush file backend: {}", e),
@@ -67,7 +67,7 @@ fn exec_commad(cmd: Command, logger: &mut Logger) -> bool
             false
         },
         Command::Log(LogMsg { target, msg, level }) => {
-            if let Err(e) = log(logger.file.as_mut(), &target, &msg, level) { //TODO: find a way to display e
+            if let Err(e) = log(logger.file.as_mut(), &target, &msg, level) {
                 let _ = log(logger.std.as_mut(),
                             "bp3d-logger",
                             &format!("Could not write to file backend: {}", e),
