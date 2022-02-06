@@ -125,7 +125,8 @@ impl Backend for FileBackend
     type Error = std::io::Error;
 
     fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error> {
-        writeln!(self.get_create_open_file(target)?, "[{}] {}", level, msg)
+        writeln!(self.get_create_open_file(target)?, "[{}] {}", level, msg)?;
+        self.flush()
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
