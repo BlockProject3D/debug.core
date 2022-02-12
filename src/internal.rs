@@ -30,6 +30,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use crossbeam_channel::{Receiver, Sender, bounded};
 use log::{Level, Log, Metadata, Record};
+use time::macros::format_description;
+use time::OffsetDateTime;
+use time_tz::OffsetDateTimeExt;
 use crate::backend::Backend;
 use crate::{Logger, LogMsg};
 
@@ -171,8 +174,14 @@ impl Log for LoggerImpl
 
     fn log(&self, record: &Record) {
         let (target, module) = extract_target_module(record);
+        //In the future attempt to not update all the time https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=17c218f318826f55ab64535bfcd28ec6
+        let system_tz = time_tz::system::get_timezone()
+            .unwrap_or(time_tz::timezones::db::us::CENTRAL);
+        let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
+        //<error> is very unlikely to occur (only possibility is a weird io error).
+        let formatted = OffsetDateTime::now_utc().to_timezone(system_tz).format(format).unwrap_or_else(|_| "<error>".into());
         let msg = LogMsg {
-            msg: format!("({}) {}: {}", "<time here>", module.unwrap_or("main"), record.args()),
+            msg: format!("({}) {}: {}", formatted, module.unwrap_or("main"), record.args()),
             target: target.into(),
             level: record.level()
         };

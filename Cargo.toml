@@ -17,6 +17,8 @@ log = "0.4.14"
 bp3d-fs = { git = "https://gitlab.com/bp3d/fs.git" }
 crossbeam-channel = "0.5.2"
 lazy_static = "1.4.0"
+time = { version = "0.3.7", features = ["formatting", "macros"] }
+time-tz = { version = "0.3.1", features = ["system"] }
 
 [features]
 
