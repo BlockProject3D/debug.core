@@ -31,7 +31,7 @@ mod internal;
 
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
-use log::Level;
+use log::{Level, Log};
 
 #[derive(Clone)]
 pub struct LogMsg {
@@ -74,31 +74,55 @@ impl Logger
         Logger::default()
     }
 
-    pub fn add_stdout(&mut self)
+    pub fn add_stdout(mut self) -> Self
     {
-        self.std = Some(backend::StdBackend::new(true))
+        self.std = Some(backend::StdBackend::new(true));
+        self
     }
 
-    pub fn add_file<'a, T: ToApp<'a>>(&mut self, app: T) -> Result<(), bp3d_fs::dirs::Error>
+    pub fn add_file<'a, T: ToApp<'a>>(mut self, app: T) -> Self
     {
         let app = app.to_app();
-        let logs = app.get_logs()?;
-        self.file = Some(backend::FileBackend::new(logs));
-        Ok(())
+        if let Ok(logs) = app.get_logs() {
+            self.file = Some(backend::FileBackend::new(logs));
+        } else {
+            eprintln!("Failed to obtain application log directory");
+        }
+        self
+    }
+
+    pub fn build(self) -> LoggerGuard {
+        let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
+        // (we can't do anything if there's already a logger set;
+        // unfortunately that is a limitation of the log crate)
+
+        BP3D_LOGGER.start_new_thread(self); // Re-start the logging thread with the new configuration.
+        LoggerGuard {}
+    }
+}
+
+#[must_use]
+pub struct LoggerGuard {}
+
+impl LoggerGuard {
+    pub fn start(&self) {
+        BP3D_LOGGER.enable(true);
+    }
+}
+
+impl Drop for LoggerGuard {
+    fn drop(&mut self) {
+        // Disable the logger so further log requests are dropped.
+        BP3D_LOGGER.enable(false);
+        // Send termination command and join with logging thread.
+        BP3D_LOGGER.terminate();
+        // Clear by force all content of in memory log buffer.
+        BP3D_LOGGER.clear_log_buffer();
     }
 }
 
 lazy_static::lazy_static! {
     static ref BP3D_LOGGER: internal::LoggerImpl = internal::LoggerImpl::new();
-}
-
-pub fn init(logger: Logger)
-{
-    let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
-    // (we can't do anything if there's already a logger set;
-    // unfortunately that is a limitation of the log crate)
-
-    BP3D_LOGGER.start_new_thread(logger); // Re-start the logging thread with the new configuration.
 }
 
 pub fn enable_log_buffer()

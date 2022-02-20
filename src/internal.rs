@@ -89,7 +89,8 @@ pub struct LoggerImpl
     recv_ch: Receiver<Command>,
     log_buffer_send_ch: Sender<LogMsg>,
     log_buffer_recv_ch: Receiver<LogMsg>,
-    enable_log_buffer: AtomicBool
+    enable_log_buffer: AtomicBool,
+    enabled: AtomicBool
 }
 
 impl LoggerImpl {
@@ -102,8 +103,13 @@ impl LoggerImpl {
             recv_ch,
             log_buffer_send_ch,
             log_buffer_recv_ch,
-            enable_log_buffer: AtomicBool::new(false)
+            enable_log_buffer: AtomicBool::new(false),
+            enabled: AtomicBool::new(false)
         }
+    }
+
+    pub fn enable(&self, flag: bool) {
+        self.enabled.store(flag, Ordering::Release);
     }
 
     pub fn enable_log_buffer(&self, flag: bool) {
@@ -116,6 +122,21 @@ impl LoggerImpl {
 
     pub fn get_log_buffer(&self) -> Receiver<LogMsg> {
         self.log_buffer_recv_ch.clone()
+    }
+
+    pub fn terminate(&self) {
+        // This should never panic as there's no way another call would have panicked!
+        let mut thread = self.thread.lock().unwrap();
+        if let Some(handle) = thread.take() {
+            // This cannot panic as send_ch is owned by LoggerImpl which is intended
+            // to be statically allocated.
+            unsafe {
+                self.send_ch.send(Command::Flush).unwrap_unchecked();
+                self.send_ch.send(Command::Terminate).unwrap_unchecked();
+            }
+            // Join the logging thread; this will lock until the thread is completely terminated.
+            handle.join().unwrap();
+        }
     }
 
     pub fn start_new_thread(&self, logger: Logger) {
@@ -137,7 +158,10 @@ impl LoggerImpl {
             *thread = Some(std::thread::spawn(move || {
                 let mut logger = logger;
                 while let Ok(v) = recv_ch.recv() {
-                    exec_commad(v, &mut logger);
+                    let flag = exec_commad(v, &mut logger);
+                    if flag { // The thread has requested to exit itself; drop out of the main loop.
+                        break;
+                    }
                 }
             }));
         }
@@ -169,10 +193,14 @@ fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>)
 impl Log for LoggerImpl
 {
     fn enabled(&self, _: &Metadata) -> bool {
-        true
+        self.enabled.load(Ordering::Acquire)
     }
 
     fn log(&self, record: &Record) {
+        // Apparently the log crate is defective: the enabled function is ignored...
+        if !self.enabled(record.metadata()) {
+            return;
+        }
         let (target, module) = extract_target_module(record);
         //In the future attempt to not update all the time https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=17c218f318826f55ab64535bfcd28ec6
         let system_tz = time_tz::system::get_timezone()
