@@ -31,7 +31,7 @@ mod internal;
 
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
-use log::{Level, Log};
+use log::Level;
 
 #[derive(Clone)]
 pub struct LogMsg {
