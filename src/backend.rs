@@ -26,16 +26,15 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use log::Level;
 use std::collections::HashMap;
+use std::fmt::Display;
+use std::fmt::Formatter;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use log::Level;
-use std::fmt::Display;
-use std::fmt::Formatter;
 
-pub trait Backend
-{
+pub trait Backend {
     type Error: Display;
     fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error>;
     fn flush(&mut self) -> Result<(), Self::Error>;
@@ -43,34 +42,26 @@ pub trait Backend
 
 pub struct DummyError();
 
-impl Display for DummyError
-{
+impl Display for DummyError {
     fn fmt(&self, _: &mut Formatter<'_>) -> std::fmt::Result {
         todo!() // Panic (DummyError is by definition the error that never occurs)!
     }
 }
 
-pub struct StdBackend
-{
-    smart_stderr: bool
+pub struct StdBackend {
+    smart_stderr: bool,
 }
 
-impl StdBackend
-{
-    pub fn new(smart_stderr: bool) -> StdBackend
-    {
-        StdBackend {
-            smart_stderr
-        }
+impl StdBackend {
+    pub fn new(smart_stderr: bool) -> StdBackend {
+        StdBackend { smart_stderr }
     }
 }
 
-impl Backend for StdBackend
-{
+impl Backend for StdBackend {
     type Error = DummyError;
 
-    fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error>
-    {
+    fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error> {
         if !self.smart_stderr {
             println!("<{}> [{}] {}", target, level, msg);
             return Ok(());
@@ -83,45 +74,43 @@ impl Backend for StdBackend
         Ok(())
     }
 
-    fn flush(&mut self) -> Result<(), Self::Error>
-    {
+    fn flush(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }
 
-pub struct FileBackend
-{
+pub struct FileBackend {
     targets: HashMap<String, BufWriter<File>>,
-    path: PathBuf
+    path: PathBuf,
 }
 
-impl FileBackend
-{
-    pub fn new(path: PathBuf) -> FileBackend
-    {
+impl FileBackend {
+    pub fn new(path: PathBuf) -> FileBackend {
         FileBackend {
             targets: HashMap::new(),
-            path
+            path,
         }
     }
 
-    fn get_create_open_file(&mut self, target: &str) -> Result<&mut BufWriter<File>, std::io::Error>
-    {
-        if let None = self.targets.get_mut(target) {
+    fn get_create_open_file(
+        &mut self,
+        target: &str,
+    ) -> Result<&mut BufWriter<File>, std::io::Error> {
+        if self.targets.get(target).is_none() {
             let f = OpenOptions::new()
                 .append(true)
                 .create(true)
                 .open(self.path.join(format!("{}.log", target)))?;
             self.targets.insert(target.into(), BufWriter::new(f));
         }
-        unsafe { // This cannot never fail because None is captured and initialized by the if block.
+        unsafe {
+            // This cannot never fail because None is captured and initialized by the if block.
             Ok(self.targets.get_mut(target).unwrap_unchecked())
         }
     }
 }
 
-impl Backend for FileBackend
-{
+impl Backend for FileBackend {
     type Error = std::io::Error;
 
     fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error> {
@@ -129,7 +118,7 @@ impl Backend for FileBackend
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        for (_, v) in &mut self.targets {
+        for v in self.targets.values_mut() {
             v.flush()?;
         }
         Ok(())
