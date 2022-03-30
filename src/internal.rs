@@ -251,6 +251,7 @@ impl Log for LoggerImpl {
             // This cannot panic as send_ch is owned by LoggerImpl which is intended
             // to be statically allocated.
             self.send_ch.send(Command::Flush).unwrap_unchecked();
+            while !self.send_ch.is_empty() {}
         }
     }
 }
