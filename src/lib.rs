@@ -35,7 +35,7 @@ mod internal;
 
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
-use log::Level;
+use log::{Level, Log};
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 
@@ -172,29 +172,46 @@ impl Logger {
 
     /// Initializes the log implementation with this current configuration.
     ///
-    /// NOTE: This takes a closure to flush all log buffers before returning. It is
-    /// necessary to manually flush log buffers because this implementation uses threads
+    /// NOTE: This returns a guard to flush all log buffers before returning. It is
+    /// necessary to flush log buffers because this implementation uses threads
     /// to avoid blocking the main thread when issuing logs.
     ///
     /// NOTE 2: There are no safety concerns with running twice this function in the same
     /// application, only that calling this function may be slow due to thread management.
-    pub fn run<R, F: FnOnce() -> R>(self, f: F) -> R {
+    pub fn start(self) -> Guard {
         let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
-                                                // (we can't do anything if there's already a logger set;
-                                                // unfortunately that is a limitation of the log crate)
+        // (we can't do anything if there's already a logger set;
+        // unfortunately that is a limitation of the log crate)
 
         BP3D_LOGGER.start_new_thread(self); // Re-start the logging thread with the new configuration.
         BP3D_LOGGER.enable(true); // Enable logging.
+        Guard
+    }
 
-        let res = f();
+    /// Initializes the log implementation with this current configuration.
+    ///
+    /// NOTE: Since version 1.1.0 this is a redirect to bp3d_logger::with_logger.
+    #[deprecated("Please use bp3d_logger::with_logger")]
+    pub fn run<R, F: FnOnce() -> R>(self, f: F) -> R {
+        with_logger(self, f)
+    }
+}
 
+/// Represents a logger guard.
+///
+/// WARNING: Once this guard is dropped messages are no longer captured.
+pub struct Guard;
+
+impl Drop for Guard {
+    fn drop(&mut self) {
         // Disable the logger so further log requests are dropped.
         BP3D_LOGGER.enable(false);
         // Send termination command and join with logging thread.
         BP3D_LOGGER.terminate();
+        // Disable log buffer.
+        BP3D_LOGGER.enable_log_buffer(false);
         // Clear by force all content of in memory log buffer.
         BP3D_LOGGER.clear_log_buffer();
-        res
     }
 }
 
@@ -214,4 +231,31 @@ pub fn disable_log_buffer() {
 /// Returns the buffer from the log redirect pump.
 pub fn get_log_buffer() -> LogBuffer {
     BP3D_LOGGER.get_log_buffer()
+}
+
+/// Low-level log function. This injects log messages directly into the logging thread channel.
+///
+/// This function applies basic formatting depending on the backend:
+/// - For stdout/stderr backend the format is <target> \[level\] msg
+/// - For file backend the format is \[level\] msg and the message is recorded in the file
+/// corresponding to the log target.
+pub fn raw_log(msg: LogMsg) {
+    BP3D_LOGGER.low_level_log(msg)
+}
+
+/// Shortcut to the flush command to avoid having to call behind the dyn interface.
+pub fn flush() {
+    BP3D_LOGGER.flush();
+}
+
+/// Returns true if the logger is currently enabled and is capturing log messages.
+pub fn enabled() -> bool {
+    BP3D_LOGGER.is_enabled()
+}
+
+/// Runs a closure in scope of a logger configuration, then free the given logger configuration
+/// and return closure result.
+pub fn with_logger<R, F: FnOnce() -> R>(logger: Logger, f: F) -> R {
+    let _guard = logger.start();
+    f()
 }
