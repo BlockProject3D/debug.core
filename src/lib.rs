@@ -191,7 +191,7 @@ impl Logger {
     /// Initializes the log implementation with this current configuration.
     ///
     /// NOTE: Since version 1.1.0 this is a redirect to bp3d_logger::with_logger.
-    #[deprecated("Please use bp3d_logger::with_logger")]
+    #[deprecated(since = "1.1.0", note = "please use bp3d_logger::with_logger")]
     pub fn run<R, F: FnOnce() -> R>(self, f: F) -> R {
         with_logger(self, f)
     }
