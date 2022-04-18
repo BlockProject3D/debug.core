@@ -33,6 +33,7 @@ use std::fmt::Formatter;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 pub trait Backend {
     type Error: Display;
@@ -48,6 +49,8 @@ impl Display for DummyError {
     }
 }
 
+pub static ENABLE_STDOUT: AtomicBool = AtomicBool::new(true);
+
 pub struct StdBackend {
     smart_stderr: bool,
 }
@@ -62,6 +65,10 @@ impl Backend for StdBackend {
     type Error = DummyError;
 
     fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error> {
+        if !ENABLE_STDOUT.load(Ordering::Acquire) {
+            // Skip logging if temporarily disabled.
+            return Ok(());
+        }
         if !self.smart_stderr {
             println!("<{}> [{}] {}", target, level, msg);
             return Ok(());

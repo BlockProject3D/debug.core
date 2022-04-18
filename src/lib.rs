@@ -38,6 +38,8 @@ use crossbeam_channel::Receiver;
 use log::{Level, Log};
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use crate::backend::ENABLE_STDOUT;
 
 /// Represents a log message in the [LogBuffer](crate::LogBuffer).
 #[derive(Clone)]
@@ -226,6 +228,16 @@ pub fn enable_log_buffer() {
 pub fn disable_log_buffer() {
     BP3D_LOGGER.enable_log_buffer(false);
     BP3D_LOGGER.clear_log_buffer();
+}
+
+/// Enables the stdout/stderr logger.
+pub fn enable_stdout() {
+    ENABLE_STDOUT.store(true, Ordering::Release);
+}
+
+/// Disables the stdout/stderr logger.
+pub fn disable_stdout() {
+    ENABLE_STDOUT.store(false, Ordering::Release);
 }
 
 /// Returns the buffer from the log redirect pump.
