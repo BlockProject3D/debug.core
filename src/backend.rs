@@ -34,7 +34,10 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use atty::Stream;
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
 use crate::Colors;
+use crate::easy_termcolor::{color, EasyTermColor};
 
 pub trait Backend {
     type Error: Display;
@@ -57,9 +60,26 @@ pub struct StdBackend {
     colors: Colors
 }
 
+fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
+    let t = ColorSpec::new().set_bold(true).clone();
+    EasyTermColor(stream).write('<').color(t).write(target).reset().write("> ")
+        .write('[').color(color(level)).write(level).reset().write(']')
+        .write(format!(" {}", msg)).lf();
+}
+
 impl StdBackend {
     pub fn new(smart_stderr: bool, colors: Colors) -> StdBackend {
         StdBackend { smart_stderr, colors }
+    }
+
+    fn get_stream(&self, level: Level) -> Stream {
+        match self.smart_stderr {
+            false => Stream::Stdout,
+            true => match level {
+                Level::Error => Stream::Stderr,
+                _ => Stream::Stdout
+            }
+        }
     }
 }
 
@@ -71,15 +91,27 @@ impl Backend for StdBackend {
             // Skip logging if temporarily disabled.
             return Ok(());
         }
-        if !self.smart_stderr {
-            println!("<{}> [{}] {}", target, level, msg);
-            return Ok(());
-        }
-        if level == Level::Error {
-            eprintln!("<{}> [{}] {}", target, level, msg);
-        } else {
-            println!("<{}> [{}] {}", target, level, msg);
-        }
+        let stream = self.get_stream(level);
+        let use_termcolor = match self.colors {
+            Colors::Disabled => false,
+            Colors::Enabled => true,
+            Colors::Auto => atty::is(stream)
+        };
+        match use_termcolor {
+            true => {
+                let val = match stream {
+                    Stream::Stderr => StandardStream::stderr(ColorChoice::Always),
+                    _ => StandardStream::stdout(ColorChoice::Always)
+                };
+                write_msg(val, target, msg, level);
+            },
+            false => {
+                match stream {
+                    Stream::Stderr => eprintln!("<{}> [{}] {}", target, level, msg),
+                    _ => println!("<{}> [{}] {}", target, level, msg)
+                };
+            }
+        };
         Ok(())
     }
 

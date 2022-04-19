@@ -32,6 +32,7 @@
 
 mod backend;
 mod internal;
+mod easy_termcolor;
 
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
