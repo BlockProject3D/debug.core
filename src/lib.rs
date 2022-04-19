@@ -131,7 +131,7 @@ impl Default for Colors {
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     let code = with_logger(Logger::new().add_stdout().add_file("my-app"), {
+///     let code = with_logger(Logger::new().add_stdout().add_file("my-app"), || {
 ///         log::set_max_level(LevelFilter::Info);
 ///         //...
 ///         info!("Example message");
