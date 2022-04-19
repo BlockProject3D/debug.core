@@ -84,6 +84,26 @@ impl<'a> GetLogs for &'a str {
     }
 }
 
+/// Enum of the different color settings when printing to stdout/stderr.
+#[derive(Debug, Copy, Clone)]
+pub enum Colors {
+    /// Color printing is always enabled.
+    Enabled,
+
+    /// Color printing is always disabled.
+    Disabled,
+
+    /// Color printing is automatic (if current terminal is a tty, print with colors, otherwise
+    /// print without colors).
+    Auto
+}
+
+impl Default for Colors {
+    fn default() -> Self {
+        Self::Disabled
+    }
+}
+
 /// The base logger builder/initializer.
 ///
 /// # Examples
@@ -95,22 +115,22 @@ impl<'a> GetLogs for &'a str {
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     Logger::new().add_stdout().add_file("my-app").run(|| {
-///         log::set_max_level(LevelFilter::Info);
-///         //...
-///         info!("Example message");
-///     });
+///     let _guard = Logger::new().add_stdout().add_file("my-app").start();
+///     log::set_max_level(LevelFilter::Info);
+///     //...
+///     info!("Example message");
 /// }
 /// ```
 ///
 /// The following example shows initialization of this logger with a return value.
 /// ```
 /// use bp3d_logger::Logger;
+/// use bp3d_logger::with_logger;
 /// use log::info;
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     let code = Logger::new().add_stdout().add_file("my-app").run(|| {
+///     let code = with_logger(Logger::new().add_stdout().add_file("my-app"), {
 ///         log::set_max_level(LevelFilter::Info);
 ///         //...
 ///         info!("Example message");
@@ -127,22 +147,33 @@ impl<'a> GetLogs for &'a str {
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     Logger::new().add_stdout().add_file("my-app").run(|| {
-///         log::set_max_level(LevelFilter::Info);
-///         bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
-///         //... application code with log redirect pump.
-///         info!("Example message");
-///         let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
-///         println!("Last log message: {}", l.msg);
-///         bp3d_logger::disable_log_buffer();
-///         //... application code without log redirect pump.
-///     });
+///     let _guard = Logger::new().add_stdout().add_file("my-app").start();
+///     log::set_max_level(LevelFilter::Info);
+///     bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
+///     //... application code with log redirect pump.
+///     info!("Example message");
+///     let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
+///     println!("Last log message: {}", l.msg);
+///     bp3d_logger::disable_log_buffer();
+///     //... application code without log redirect pump.
 /// }
 /// ```
-#[derive(Default)]
 pub struct Logger {
+    colors: Colors,
+    smart_stderr: bool,
     std: Option<backend::StdBackend>,
     file: Option<backend::FileBackend>,
+}
+
+impl Default for Logger {
+    fn default() -> Self {
+        Self {
+            colors: Colors::default(),
+            smart_stderr: true,
+            std: None,
+            file: None
+        }
+    }
 }
 
 impl Logger {
@@ -151,9 +182,25 @@ impl Logger {
         Logger::default()
     }
 
-    /// Enables stdout logging with automatic redirection of error logs to stderr.
+    /// Sets the colors state when logging to stdout/stderr.
+    ///
+    /// The default behavior is to disable colors.
+    pub fn colors(mut self, state: Colors) -> Self {
+        self.colors = state;
+        self
+    }
+
+    /// Enables or disables automatic redirection of error logs to stderr.
+    ///
+    /// The default for this flag is true.
+    pub fn smart_stderr(mut self, flag: bool) -> Self {
+        self.smart_stderr = flag;
+        self
+    }
+
+    /// Enables stdout logging.
     pub fn add_stdout(mut self) -> Self {
-        self.std = Some(backend::StdBackend::new(true));
+        self.std = Some(backend::StdBackend::new(self.smart_stderr, self.colors));
         self
     }
 

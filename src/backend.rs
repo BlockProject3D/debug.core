@@ -34,6 +34,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
+use crate::Colors;
 
 pub trait Backend {
     type Error: Display;
@@ -53,11 +54,12 @@ pub static ENABLE_STDOUT: AtomicBool = AtomicBool::new(true);
 
 pub struct StdBackend {
     smart_stderr: bool,
+    colors: Colors
 }
 
 impl StdBackend {
-    pub fn new(smart_stderr: bool) -> StdBackend {
-        StdBackend { smart_stderr }
+    pub fn new(smart_stderr: bool, colors: Colors) -> StdBackend {
+        StdBackend { smart_stderr, colors }
     }
 }
 
