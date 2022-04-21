@@ -223,7 +223,7 @@ fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>) {
 
 impl Log for LoggerImpl {
     fn enabled(&self, _: &Metadata) -> bool {
-        self.enabled.load(Ordering::Acquire)
+        self.is_enabled()
     }
 
     fn log(&self, record: &Record) {
@@ -255,6 +255,9 @@ impl Log for LoggerImpl {
     }
 
     fn flush(&self) {
+        if !self.is_enabled() {
+            return;
+        }
         unsafe {
             // This cannot panic as send_ch is owned by LoggerImpl which is intended
             // to be statically allocated.
