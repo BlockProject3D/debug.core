@@ -186,6 +186,29 @@ impl LoggerImpl {
             }
         }
     }
+
+    pub fn low_level_log(&self, msg: LogMsg) {
+        if self.enable_log_buffer.load(Ordering::Acquire) {
+            unsafe {
+                // This cannot panic as both send_ch and log_buffer_send_ch are owned by LoggerImpl
+                // which is intended to be statically allocated.
+                self.send_ch
+                    .send(Command::Log(msg.clone()))
+                    .unwrap_unchecked();
+                self.log_buffer_send_ch.send(msg).unwrap_unchecked();
+            }
+        } else {
+            unsafe {
+                // This cannot panic as send_ch is owned by LoggerImpl which is intended
+                // to be statically allocated.
+                self.send_ch.send(Command::Log(msg)).unwrap_unchecked();
+            }
+        }
+    }
+
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.load(Ordering::Acquire)
+    }
 }
 
 fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>) {
@@ -200,7 +223,7 @@ fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>) {
 
 impl Log for LoggerImpl {
     fn enabled(&self, _: &Metadata) -> bool {
-        self.enabled.load(Ordering::Acquire)
+        self.is_enabled()
     }
 
     fn log(&self, record: &Record) {
@@ -228,29 +251,18 @@ impl Log for LoggerImpl {
             target: target.into(),
             level: record.level(),
         };
-        if self.enable_log_buffer.load(Ordering::Acquire) {
-            unsafe {
-                // This cannot panic as both send_ch and log_buffer_send_ch are owned by LoggerImpl
-                // which is intended to be statically allocated.
-                self.send_ch
-                    .send(Command::Log(msg.clone()))
-                    .unwrap_unchecked();
-                self.log_buffer_send_ch.send(msg).unwrap_unchecked();
-            }
-        } else {
-            unsafe {
-                // This cannot panic as send_ch is owned by LoggerImpl which is intended
-                // to be statically allocated.
-                self.send_ch.send(Command::Log(msg)).unwrap_unchecked();
-            }
-        }
+        self.low_level_log(msg);
     }
 
     fn flush(&self) {
+        if !self.is_enabled() {
+            return;
+        }
         unsafe {
             // This cannot panic as send_ch is owned by LoggerImpl which is intended
             // to be statically allocated.
             self.send_ch.send(Command::Flush).unwrap_unchecked();
+            while !self.send_ch.is_empty() {}
         }
     }
 }

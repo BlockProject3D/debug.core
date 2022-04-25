@@ -32,12 +32,15 @@
 
 mod backend;
 mod internal;
+mod easy_termcolor;
 
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
-use log::Level;
+use log::{Level, Log};
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
+use std::sync::atomic::Ordering;
+use crate::backend::ENABLE_STDOUT;
 
 /// Represents a log message in the [LogBuffer](crate::LogBuffer).
 #[derive(Clone)]
@@ -82,6 +85,26 @@ impl<'a> GetLogs for &'a str {
     }
 }
 
+/// Enum of the different color settings when printing to stdout/stderr.
+#[derive(Debug, Copy, Clone)]
+pub enum Colors {
+    /// Color printing is always enabled.
+    Enabled,
+
+    /// Color printing is always disabled.
+    Disabled,
+
+    /// Color printing is automatic (if current terminal is a tty, print with colors, otherwise
+    /// print without colors).
+    Auto
+}
+
+impl Default for Colors {
+    fn default() -> Self {
+        Self::Disabled
+    }
+}
+
 /// The base logger builder/initializer.
 ///
 /// # Examples
@@ -93,22 +116,22 @@ impl<'a> GetLogs for &'a str {
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     Logger::new().add_stdout().add_file("my-app").run(|| {
-///         log::set_max_level(LevelFilter::Info);
-///         //...
-///         info!("Example message");
-///     });
+///     let _guard = Logger::new().add_stdout().add_file("my-app").start();
+///     log::set_max_level(LevelFilter::Info);
+///     //...
+///     info!("Example message");
 /// }
 /// ```
 ///
 /// The following example shows initialization of this logger with a return value.
 /// ```
 /// use bp3d_logger::Logger;
+/// use bp3d_logger::with_logger;
 /// use log::info;
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     let code = Logger::new().add_stdout().add_file("my-app").run(|| {
+///     let code = with_logger(Logger::new().add_stdout().add_file("my-app"), || {
 ///         log::set_max_level(LevelFilter::Info);
 ///         //...
 ///         info!("Example message");
@@ -125,22 +148,33 @@ impl<'a> GetLogs for &'a str {
 /// use log::LevelFilter;
 ///
 /// fn main() {
-///     Logger::new().add_stdout().add_file("my-app").run(|| {
-///         log::set_max_level(LevelFilter::Info);
-///         bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
-///         //... application code with log redirect pump.
-///         info!("Example message");
-///         let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
-///         println!("Last log message: {}", l.msg);
-///         bp3d_logger::disable_log_buffer();
-///         //... application code without log redirect pump.
-///     });
+///     let _guard = Logger::new().add_stdout().add_file("my-app").start();
+///     log::set_max_level(LevelFilter::Info);
+///     bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
+///     //... application code with log redirect pump.
+///     info!("Example message");
+///     let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
+///     println!("Last log message: {}", l.msg);
+///     bp3d_logger::disable_log_buffer();
+///     //... application code without log redirect pump.
 /// }
 /// ```
-#[derive(Default)]
 pub struct Logger {
+    colors: Colors,
+    smart_stderr: bool,
     std: Option<backend::StdBackend>,
     file: Option<backend::FileBackend>,
+}
+
+impl Default for Logger {
+    fn default() -> Self {
+        Self {
+            colors: Colors::default(),
+            smart_stderr: true,
+            std: None,
+            file: None
+        }
+    }
 }
 
 impl Logger {
@@ -149,9 +183,25 @@ impl Logger {
         Logger::default()
     }
 
-    /// Enables stdout logging with automatic redirection of error logs to stderr.
+    /// Sets the colors state when logging to stdout/stderr.
+    ///
+    /// The default behavior is to disable colors.
+    pub fn colors(mut self, state: Colors) -> Self {
+        self.colors = state;
+        self
+    }
+
+    /// Enables or disables automatic redirection of error logs to stderr.
+    ///
+    /// The default for this flag is true.
+    pub fn smart_stderr(mut self, flag: bool) -> Self {
+        self.smart_stderr = flag;
+        self
+    }
+
+    /// Enables stdout logging.
     pub fn add_stdout(mut self) -> Self {
-        self.std = Some(backend::StdBackend::new(true));
+        self.std = Some(backend::StdBackend::new(self.smart_stderr, self.colors));
         self
     }
 
@@ -172,29 +222,46 @@ impl Logger {
 
     /// Initializes the log implementation with this current configuration.
     ///
-    /// NOTE: This takes a closure to flush all log buffers before returning. It is
-    /// necessary to manually flush log buffers because this implementation uses threads
+    /// NOTE: This returns a guard to flush all log buffers before returning. It is
+    /// necessary to flush log buffers because this implementation uses threads
     /// to avoid blocking the main thread when issuing logs.
     ///
     /// NOTE 2: There are no safety concerns with running twice this function in the same
     /// application, only that calling this function may be slow due to thread management.
-    pub fn run<R, F: FnOnce() -> R>(self, f: F) -> R {
+    pub fn start(self) -> Guard {
         let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
-                                                // (we can't do anything if there's already a logger set;
-                                                // unfortunately that is a limitation of the log crate)
+        // (we can't do anything if there's already a logger set;
+        // unfortunately that is a limitation of the log crate)
 
         BP3D_LOGGER.start_new_thread(self); // Re-start the logging thread with the new configuration.
         BP3D_LOGGER.enable(true); // Enable logging.
+        Guard
+    }
 
-        let res = f();
+    /// Initializes the log implementation with this current configuration.
+    ///
+    /// NOTE: Since version 1.1.0 this is a redirect to bp3d_logger::with_logger.
+    #[deprecated(since = "1.1.0", note = "please use bp3d_logger::with_logger")]
+    pub fn run<R, F: FnOnce() -> R>(self, f: F) -> R {
+        with_logger(self, f)
+    }
+}
 
+/// Represents a logger guard.
+///
+/// WARNING: Once this guard is dropped messages are no longer captured.
+pub struct Guard;
+
+impl Drop for Guard {
+    fn drop(&mut self) {
         // Disable the logger so further log requests are dropped.
         BP3D_LOGGER.enable(false);
         // Send termination command and join with logging thread.
         BP3D_LOGGER.terminate();
+        // Disable log buffer.
+        BP3D_LOGGER.enable_log_buffer(false);
         // Clear by force all content of in memory log buffer.
         BP3D_LOGGER.clear_log_buffer();
-        res
     }
 }
 
@@ -211,7 +278,44 @@ pub fn disable_log_buffer() {
     BP3D_LOGGER.clear_log_buffer();
 }
 
+/// Enables the stdout/stderr logger.
+pub fn enable_stdout() {
+    ENABLE_STDOUT.store(true, Ordering::Release);
+}
+
+/// Disables the stdout/stderr logger.
+pub fn disable_stdout() {
+    ENABLE_STDOUT.store(false, Ordering::Release);
+}
+
 /// Returns the buffer from the log redirect pump.
 pub fn get_log_buffer() -> LogBuffer {
     BP3D_LOGGER.get_log_buffer()
+}
+
+/// Low-level log function. This injects log messages directly into the logging thread channel.
+///
+/// This function applies basic formatting depending on the backend:
+/// - For stdout/stderr backend the format is <target> \[level\] msg
+/// - For file backend the format is \[level\] msg and the message is recorded in the file
+/// corresponding to the log target.
+pub fn raw_log(msg: LogMsg) {
+    BP3D_LOGGER.low_level_log(msg)
+}
+
+/// Shortcut to the flush command to avoid having to call behind the dyn interface.
+pub fn flush() {
+    BP3D_LOGGER.flush();
+}
+
+/// Returns true if the logger is currently enabled and is capturing log messages.
+pub fn enabled() -> bool {
+    BP3D_LOGGER.is_enabled()
+}
+
+/// Runs a closure in scope of a logger configuration, then free the given logger configuration
+/// and return closure result.
+pub fn with_logger<R, F: FnOnce() -> R>(logger: Logger, f: F) -> R {
+    let _guard = logger.start();
+    f()
 }
