@@ -26,6 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use crate::easy_termcolor::{color, EasyTermColor};
+use crate::Colors;
+use atty::Stream;
 use log::Level;
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -34,10 +37,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use atty::Stream;
 use termcolor::{ColorChoice, ColorSpec, StandardStream};
-use crate::Colors;
-use crate::easy_termcolor::{color, EasyTermColor};
 
 pub trait Backend {
     type Error: Display;
@@ -57,19 +57,32 @@ pub static ENABLE_STDOUT: AtomicBool = AtomicBool::new(true);
 
 pub struct StdBackend {
     smart_stderr: bool,
-    colors: Colors
+    colors: Colors,
 }
 
 fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
     let t = ColorSpec::new().set_bold(true).clone();
-    EasyTermColor(stream).write('<').color(t).write(target).reset().write("> ")
-        .write('[').color(color(level)).write(level).reset().write(']')
-        .write(format!(" {}", msg)).lf();
+    EasyTermColor(stream)
+        .write('<')
+        .color(t)
+        .write(target)
+        .reset()
+        .write("> ")
+        .write('[')
+        .color(color(level))
+        .write(level)
+        .reset()
+        .write(']')
+        .write(format!(" {}", msg))
+        .lf();
 }
 
 impl StdBackend {
     pub fn new(smart_stderr: bool, colors: Colors) -> StdBackend {
-        StdBackend { smart_stderr, colors }
+        StdBackend {
+            smart_stderr,
+            colors,
+        }
     }
 
     fn get_stream(&self, level: Level) -> Stream {
@@ -77,8 +90,8 @@ impl StdBackend {
             false => Stream::Stdout,
             true => match level {
                 Level::Error => Stream::Stderr,
-                _ => Stream::Stdout
-            }
+                _ => Stream::Stdout,
+            },
         }
     }
 }
@@ -95,20 +108,20 @@ impl Backend for StdBackend {
         let use_termcolor = match self.colors {
             Colors::Disabled => false,
             Colors::Enabled => true,
-            Colors::Auto => atty::is(stream)
+            Colors::Auto => atty::is(stream),
         };
         match use_termcolor {
             true => {
                 let val = match stream {
                     Stream::Stderr => StandardStream::stderr(ColorChoice::Always),
-                    _ => StandardStream::stdout(ColorChoice::Always)
+                    _ => StandardStream::stdout(ColorChoice::Always),
                 };
                 write_msg(val, target, msg, level);
-            },
+            }
             false => {
                 match stream {
                     Stream::Stderr => eprintln!("<{}> [{}] {}", target, level, msg),
-                    _ => println!("<{}> [{}] {}", target, level, msg)
+                    _ => println!("<{}> [{}] {}", target, level, msg),
                 };
             }
         };

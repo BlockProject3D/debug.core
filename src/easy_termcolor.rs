@@ -26,8 +26,8 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::fmt::Display;
 use log::Level;
+use std::fmt::Display;
 use termcolor::{Color, ColorSpec};
 
 pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
@@ -56,10 +56,25 @@ impl<T: termcolor::WriteColor> EasyTermColor<T> {
 
 pub fn color(level: Level) -> ColorSpec {
     match level {
-        Level::Error => ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true).clone(),
-        Level::Warn => ColorSpec::new().set_fg(Some(Color::Yellow)).set_bold(true).clone(),
-        Level::Info => ColorSpec::new().set_fg(Some(Color::Green)).set_bold(true).clone(),
-        Level::Debug => ColorSpec::new().set_fg(Some(Color::Blue)).set_bold(true).clone(),
-        Level::Trace => ColorSpec::new().set_fg(Some(Color::Cyan)).set_bold(true).clone()
+        Level::Error => ColorSpec::new()
+            .set_fg(Some(Color::Red))
+            .set_bold(true)
+            .clone(),
+        Level::Warn => ColorSpec::new()
+            .set_fg(Some(Color::Yellow))
+            .set_bold(true)
+            .clone(),
+        Level::Info => ColorSpec::new()
+            .set_fg(Some(Color::Green))
+            .set_bold(true)
+            .clone(),
+        Level::Debug => ColorSpec::new()
+            .set_fg(Some(Color::Blue))
+            .set_bold(true)
+            .clone(),
+        Level::Trace => ColorSpec::new()
+            .set_fg(Some(Color::Cyan))
+            .set_bold(true)
+            .clone(),
     }
 }

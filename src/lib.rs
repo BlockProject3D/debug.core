@@ -31,16 +31,16 @@
 #![allow(clippy::needless_doctest_main)]
 
 mod backend;
-mod internal;
 mod easy_termcolor;
+mod internal;
 
+use crate::backend::ENABLE_STDOUT;
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
 use log::{Level, Log};
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
-use crate::backend::ENABLE_STDOUT;
 
 /// Represents a log message in the [LogBuffer](crate::LogBuffer).
 #[derive(Clone)]
@@ -96,7 +96,7 @@ pub enum Colors {
 
     /// Color printing is automatic (if current terminal is a tty, print with colors, otherwise
     /// print without colors).
-    Auto
+    Auto,
 }
 
 impl Default for Colors {
@@ -172,7 +172,7 @@ impl Default for Logger {
             colors: Colors::default(),
             smart_stderr: true,
             std: None,
-            file: None
+            file: None,
         }
     }
 }
@@ -230,8 +230,8 @@ impl Logger {
     /// application, only that calling this function may be slow due to thread management.
     pub fn start(self) -> Guard {
         let _ = log::set_logger(&*BP3D_LOGGER); // Ignore the error
-        // (we can't do anything if there's already a logger set;
-        // unfortunately that is a limitation of the log crate)
+                                                // (we can't do anything if there's already a logger set;
+                                                // unfortunately that is a limitation of the log crate)
 
         BP3D_LOGGER.start_new_thread(self); // Re-start the logging thread with the new configuration.
         BP3D_LOGGER.enable(true); // Enable logging.
