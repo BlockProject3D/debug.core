@@ -28,13 +28,13 @@
 
 use crate::backend::Backend;
 use crate::{LogMsg, Logger};
+use chrono::Local;
 use crossbeam_channel::{bounded, Receiver, Sender};
+use crossbeam_queue::ArrayQueue;
 use log::{Level, Log, Metadata, Record};
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use chrono::Local;
-use std::fmt::Write;
-use crossbeam_queue::ArrayQueue;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -43,7 +43,7 @@ enum Command {
     Log(LogMsg),
     Terminate,
     EnableLogBuffer,
-    DisableLogBuffer
+    DisableLogBuffer,
 }
 
 fn log<T: Backend>(
@@ -63,16 +63,20 @@ struct Thread {
     logger: Logger,
     recv_ch: Receiver<Command>,
     enable_log_buffer: bool,
-    log_buffer: Arc<ArrayQueue<LogMsg>>
+    log_buffer: Arc<ArrayQueue<LogMsg>>,
 }
 
 impl Thread {
-    pub fn new(logger: Logger, recv_ch: Receiver<Command>, log_buffer: Arc<ArrayQueue<LogMsg>>) -> Thread {
+    pub fn new(
+        logger: Logger,
+        recv_ch: Receiver<Command>,
+        log_buffer: Arc<ArrayQueue<LogMsg>>,
+    ) -> Thread {
         Thread {
             logger,
             recv_ch,
             enable_log_buffer: false,
-            log_buffer
+            log_buffer,
         }
     }
 
@@ -113,7 +117,7 @@ impl Thread {
             Command::EnableLogBuffer => {
                 self.enable_log_buffer = true;
                 false
-            },
+            }
             Command::DisableLogBuffer => {
                 self.enable_log_buffer = false;
                 false
@@ -137,7 +141,7 @@ pub struct LoggerImpl {
     enabled: AtomicBool,
     recv_ch: Receiver<Command>,
     log_buffer: Arc<ArrayQueue<LogMsg>>,
-    thread: Mutex<Option<std::thread::JoinHandle<()>>>
+    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 impl LoggerImpl {
@@ -159,9 +163,13 @@ impl LoggerImpl {
     pub fn enable_log_buffer(&self, flag: bool) {
         unsafe {
             if flag {
-                self.send_ch.send(Command::EnableLogBuffer).unwrap_unchecked();
+                self.send_ch
+                    .send(Command::EnableLogBuffer)
+                    .unwrap_unchecked();
             } else {
-                self.send_ch.send(Command::DisableLogBuffer).unwrap_unchecked();
+                self.send_ch
+                    .send(Command::DisableLogBuffer)
+                    .unwrap_unchecked();
             }
         }
     }
@@ -233,7 +241,9 @@ impl LoggerImpl {
         unsafe {
             // This cannot panic as send_ch is owned by LoggerImpl which is intended
             // to be statically allocated.
-            self.send_ch.send(Command::Log(msg.clone())).unwrap_unchecked();
+            self.send_ch
+                .send(Command::Log(msg.clone()))
+                .unwrap_unchecked();
         }
     }
 
@@ -267,7 +277,13 @@ impl Log for LoggerImpl {
         let time = Local::now();
         let formatted = time.format("%a %b %d %Y %I:%M:%S %P");
         let mut msg = LogMsg::new(target, record.level());
-        let _ = write!(msg, "({}) {}: {}", formatted, module.unwrap_or("main"), record.args());
+        let _ = write!(
+            msg,
+            "({}) {}: {}",
+            formatted,
+            module.unwrap_or("main"),
+            record.args()
+        );
         self.low_level_log(&msg);
     }
 
