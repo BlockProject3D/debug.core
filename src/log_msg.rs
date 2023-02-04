@@ -26,9 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use log::Level;
 use std::fmt::{Error, Write};
 use std::mem::MaybeUninit;
-use log::Level;
 
 // Limit the size of the target string to 16 bytes.
 const LOG_TARGET_SIZE: usize = 16;
@@ -44,7 +44,7 @@ pub struct LogMsg {
     buffer: [MaybeUninit<u8>; LOG_BUFFER_SIZE],
     level: Level,
     msg_len: u32,
-    target_len: u8
+    target_len: u8,
 }
 
 impl LogMsg {
@@ -54,10 +54,14 @@ impl LogMsg {
             buffer: unsafe { MaybeUninit::uninit().assume_init() },
             target_len: len as _,
             msg_len: len as _,
-            level
+            level,
         };
         unsafe {
-            std::ptr::copy_nonoverlapping(target.as_bytes().as_ptr(), std::mem::transmute(buffer.buffer.as_mut_ptr()), len);
+            std::ptr::copy_nonoverlapping(
+                target.as_bytes().as_ptr(),
+                std::mem::transmute(buffer.buffer.as_mut_ptr()),
+                len,
+            );
         }
         buffer
     }
@@ -76,7 +80,11 @@ impl LogMsg {
     pub unsafe fn write(&mut self, buf: &[u8]) -> usize {
         let len = std::cmp::min(buf.len(), LOG_MSG_SIZE - self.msg_len as usize);
         if len > 0 {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), std::mem::transmute(self.buffer.as_mut_ptr().offset(self.msg_len as _)), len);
+            std::ptr::copy_nonoverlapping(
+                buf.as_ptr(),
+                std::mem::transmute(self.buffer.as_mut_ptr().offset(self.msg_len as _)),
+                len,
+            );
             self.msg_len += len as u32; //The length is always less than 2^32.
         }
         len
@@ -84,12 +92,18 @@ impl LogMsg {
 
     pub fn target(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
-        unsafe { std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[..self.target_len as _])) }
+        unsafe {
+            std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[..self.target_len as _]))
+        }
     }
 
     pub fn msg(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
-        unsafe { std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[self.target_len as _..self.msg_len as _])) }
+        unsafe {
+            std::str::from_utf8_unchecked(std::mem::transmute(
+                &self.buffer[self.target_len as _..self.msg_len as _],
+            ))
+        }
     }
 
     pub fn level(&self) -> Level {

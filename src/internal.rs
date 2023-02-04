@@ -219,7 +219,11 @@ impl LoggerImpl {
                 // This cannot panic as send_ch is owned by LoggerImpl which is intended
                 // to be statically allocated.
                 self.send_ch
-                    .send(Command::Log(LogMsg::from_msg("bp3d-logger", Level::Error, "The logging thread has panicked!")))
+                    .send(Command::Log(LogMsg::from_msg(
+                        "bp3d-logger",
+                        Level::Error,
+                        "The logging thread has panicked!",
+                    )))
                     .unwrap_unchecked();
             }
         }
