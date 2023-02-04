@@ -1,4 +1,4 @@
-// Copyright (c) 2021, BlockProject 3D
+// Copyright (c) 2023, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -72,8 +72,8 @@ fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
         .color(color(level))
         .write(level)
         .reset()
-        .write(']')
-        .write(format!(" {}", msg))
+        .write("] ")
+        .write(msg)
         .lf();
 }
 

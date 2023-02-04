@@ -1,4 +1,4 @@
-// Copyright (c) 2021, BlockProject 3D
+// Copyright (c) 2023, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -32,16 +32,15 @@ use crossbeam_channel::{bounded, Receiver, Sender};
 use log::{Level, Log, Metadata, Record};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use time::macros::format_description;
-use time::OffsetDateTime;
-use time_tz::OffsetDateTimeExt;
+use chrono::Local;
+use std::fmt::Write;
 
-const BUF_SIZE: usize = 128; // The maximum count of log messages in the channel.
+const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
 enum Command {
     Flush,
     Log(LogMsg),
-    Terminate,
+    Terminate
 }
 
 fn log<T: Backend>(
@@ -73,8 +72,11 @@ fn exec_commad(cmd: Command, logger: &mut Logger) -> bool {
             }
             false
         }
-        Command::Log(LogMsg { target, msg, level }) => {
-            if let Err(e) = log(logger.file.as_mut(), &target, &msg, level) {
+        Command::Log(buffer) => {
+            let target = buffer.target();
+            let msg = buffer.msg();
+            let level = buffer.level();
+            if let Err(e) = log(logger.file.as_mut(), target, msg, level) {
                 let _ = log(
                     logger.std.as_mut(),
                     "bp3d-logger",
@@ -82,20 +84,20 @@ fn exec_commad(cmd: Command, logger: &mut Logger) -> bool {
                     Level::Error,
                 );
             }
-            let _ = log(logger.std.as_mut(), &target, &msg, level);
+            let _ = log(logger.std.as_mut(), target, msg, level);
             false
         }
     }
 }
 
 pub struct LoggerImpl {
-    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
     send_ch: Sender<Command>,
     recv_ch: Receiver<Command>,
+    enabled: AtomicBool,
     log_buffer_send_ch: Sender<LogMsg>,
     log_buffer_recv_ch: Receiver<LogMsg>,
     enable_log_buffer: AtomicBool,
-    enabled: AtomicBool,
+    thread: Mutex<Option<std::thread::JoinHandle<()>>>
 }
 
 impl LoggerImpl {
@@ -177,17 +179,13 @@ impl LoggerImpl {
                 // This cannot panic as send_ch is owned by LoggerImpl which is intended
                 // to be statically allocated.
                 self.send_ch
-                    .send(Command::Log(LogMsg {
-                        level: Level::Error,
-                        msg: "The logging thread has panicked!".into(),
-                        target: "bp3d-logger".into(),
-                    }))
+                    .send(Command::Log(LogMsg::from_msg("bp3d-logger", Level::Error, "The logging thread has panicked!")))
                     .unwrap_unchecked();
             }
         }
     }
 
-    pub fn low_level_log(&self, msg: LogMsg) {
+    pub fn low_level_log(&self, msg: &LogMsg) {
         if self.enable_log_buffer.load(Ordering::Acquire) {
             unsafe {
                 // This cannot panic as both send_ch and log_buffer_send_ch are owned by LoggerImpl
@@ -195,17 +193,18 @@ impl LoggerImpl {
                 self.send_ch
                     .send(Command::Log(msg.clone()))
                     .unwrap_unchecked();
-                self.log_buffer_send_ch.send(msg).unwrap_unchecked();
+                self.log_buffer_send_ch.send(msg.clone()).unwrap_unchecked();
             }
         } else {
             unsafe {
                 // This cannot panic as send_ch is owned by LoggerImpl which is intended
                 // to be statically allocated.
-                self.send_ch.send(Command::Log(msg)).unwrap_unchecked();
+                self.send_ch.send(Command::Log(msg.clone())).unwrap_unchecked();
             }
         }
     }
 
+    #[inline]
     pub fn is_enabled(&self) -> bool {
         self.enabled.load(Ordering::Acquire)
     }
@@ -232,26 +231,11 @@ impl Log for LoggerImpl {
             return;
         }
         let (target, module) = extract_target_module(record);
-        //In the future attempt to not update all the time https://play.rust-lang.org/?version=stable&mode=debug&edition=2021&gist=17c218f318826f55ab64535bfcd28ec6
-        let system_tz =
-            time_tz::system::get_timezone().unwrap_or(time_tz::timezones::db::us::CENTRAL);
-        let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
-        //<error> is very unlikely to occur (only possibility is a weird io error).
-        let formatted = OffsetDateTime::now_utc()
-            .to_timezone(system_tz)
-            .format(format)
-            .unwrap_or_else(|_| "<error>".into());
-        let msg = LogMsg {
-            msg: format!(
-                "({}) {}: {}",
-                formatted,
-                module.unwrap_or("main"),
-                record.args()
-            ),
-            target: target.into(),
-            level: record.level(),
-        };
-        self.low_level_log(msg);
+        let time = Local::now();
+        let formatted = time.format("%a %b %d %Y %I:%M:%S %P");
+        let mut msg = LogMsg::new(target, record.level());
+        let _ = write!(msg, "({}) {}: {}", formatted, module.unwrap_or("main"), record.args());
+        self.low_level_log(&msg);
     }
 
     fn flush(&self) {

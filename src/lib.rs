@@ -1,4 +1,4 @@
-// Copyright (c) 2021, BlockProject 3D
+// Copyright (c) 2023, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -33,27 +33,17 @@
 mod backend;
 mod easy_termcolor;
 mod internal;
+mod log_msg;
 
 use crate::backend::ENABLE_STDOUT;
 use bp3d_fs::dirs::App;
 use crossbeam_channel::Receiver;
-use log::{Level, Log};
+use log::Log;
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
-/// Represents a log message in the [LogBuffer](crate::LogBuffer).
-#[derive(Clone)]
-pub struct LogMsg {
-    /// The message string.
-    pub msg: String,
-
-    /// The crate name that issued this log.
-    pub target: String,
-
-    /// The log level.
-    pub level: Level,
-}
+pub use log_msg::LogMsg;
 
 /// The log buffer type.
 pub type LogBuffer = Receiver<LogMsg>;
@@ -207,7 +197,7 @@ impl Logger {
 
     /// Enables file logging to the given application.
     ///
-    /// The application is given as a reference to [GetLogs](crate::GetLogs) to allow obtaining
+    /// The application is given as a reference to [GetLogs](GetLogs) to allow obtaining
     /// a log directory from various sources.
     ///
     /// If the log directory could not be found the function prints an error to stderr.
@@ -299,7 +289,7 @@ pub fn get_log_buffer() -> LogBuffer {
 /// - For stdout/stderr backend the format is <target> \[level\] msg
 /// - For file backend the format is \[level\] msg and the message is recorded in the file
 /// corresponding to the log target.
-pub fn raw_log(msg: LogMsg) {
+pub fn raw_log(msg: &LogMsg) {
     BP3D_LOGGER.low_level_log(msg)
 }
 
