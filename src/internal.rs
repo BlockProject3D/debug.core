@@ -31,16 +31,19 @@ use crate::{LogMsg, Logger};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use log::{Level, Log, Metadata, Record};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use chrono::Local;
 use std::fmt::Write;
+use crossbeam_queue::ArrayQueue;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
 enum Command {
     Flush,
     Log(LogMsg),
-    Terminate
+    Terminate,
+    EnableLogBuffer,
+    DisableLogBuffer
 }
 
 fn log<T: Backend>(
@@ -56,61 +59,95 @@ fn log<T: Backend>(
     }
 }
 
-fn exec_commad(cmd: Command, logger: &mut Logger) -> bool {
-    match cmd {
-        Command::Terminate => true,
-        Command::Flush => {
-            if let Some(file) = &mut logger.file {
-                if let Err(e) = file.flush() {
+struct Thread {
+    logger: Logger,
+    recv_ch: Receiver<Command>,
+    enable_log_buffer: bool,
+    log_buffer: Arc<ArrayQueue<LogMsg>>
+}
+
+impl Thread {
+    pub fn new(logger: Logger, recv_ch: Receiver<Command>, log_buffer: Arc<ArrayQueue<LogMsg>>) -> Thread {
+        Thread {
+            logger,
+            recv_ch,
+            enable_log_buffer: false,
+            log_buffer
+        }
+    }
+
+    fn exec_commad(&mut self, cmd: Command) -> bool {
+        match cmd {
+            Command::Terminate => true,
+            Command::Flush => {
+                if let Some(file) = &mut self.logger.file {
+                    if let Err(e) = file.flush() {
+                        let _ = log(
+                            self.logger.std.as_mut(),
+                            "bp3d-logger",
+                            &format!("Could not flush file backend: {}", e),
+                            Level::Error,
+                        );
+                    }
+                }
+                false
+            }
+            Command::Log(buffer) => {
+                let target = buffer.target();
+                let msg = buffer.msg();
+                let level = buffer.level();
+                if let Err(e) = log(self.logger.file.as_mut(), target, msg, level) {
                     let _ = log(
-                        logger.std.as_mut(),
+                        self.logger.std.as_mut(),
                         "bp3d-logger",
-                        &format!("Could not flush file backend: {}", e),
+                        &format!("Could not write to file backend: {}", e),
                         Level::Error,
                     );
                 }
+                let _ = log(self.logger.std.as_mut(), target, msg, level);
+                if self.enable_log_buffer {
+                    self.log_buffer.force_push(buffer);
+                }
+                false
             }
-            false
+            Command::EnableLogBuffer => {
+                self.enable_log_buffer = true;
+                false
+            },
+            Command::DisableLogBuffer => {
+                self.enable_log_buffer = false;
+                false
+            }
         }
-        Command::Log(buffer) => {
-            let target = buffer.target();
-            let msg = buffer.msg();
-            let level = buffer.level();
-            if let Err(e) = log(logger.file.as_mut(), target, msg, level) {
-                let _ = log(
-                    logger.std.as_mut(),
-                    "bp3d-logger",
-                    &format!("Could not write to file backend: {}", e),
-                    Level::Error,
-                );
+    }
+
+    pub fn run(mut self) {
+        while let Ok(v) = self.recv_ch.recv() {
+            let flag = self.exec_commad(v);
+            if flag {
+                // The thread has requested to exit itself; drop out of the main loop.
+                break;
             }
-            let _ = log(logger.std.as_mut(), target, msg, level);
-            false
         }
     }
 }
 
 pub struct LoggerImpl {
     send_ch: Sender<Command>,
-    recv_ch: Receiver<Command>,
     enabled: AtomicBool,
-    log_buffer_send_ch: Sender<LogMsg>,
-    log_buffer_recv_ch: Receiver<LogMsg>,
-    enable_log_buffer: AtomicBool,
+    recv_ch: Receiver<Command>,
+    log_buffer: Arc<ArrayQueue<LogMsg>>,
     thread: Mutex<Option<std::thread::JoinHandle<()>>>
 }
 
 impl LoggerImpl {
     pub fn new() -> LoggerImpl {
         let (send_ch, recv_ch) = bounded(BUF_SIZE);
-        let (log_buffer_send_ch, log_buffer_recv_ch) = bounded(BUF_SIZE);
         LoggerImpl {
             thread: Mutex::new(None),
             send_ch,
             recv_ch,
-            log_buffer_send_ch,
-            log_buffer_recv_ch,
-            enable_log_buffer: AtomicBool::new(false),
+            log_buffer: Arc::new(ArrayQueue::new(BUF_SIZE)),
             enabled: AtomicBool::new(false),
         }
     }
@@ -120,15 +157,23 @@ impl LoggerImpl {
     }
 
     pub fn enable_log_buffer(&self, flag: bool) {
-        self.enable_log_buffer.store(flag, Ordering::Release);
+        unsafe {
+            if flag {
+                self.send_ch.send(Command::EnableLogBuffer).unwrap_unchecked();
+            } else {
+                self.send_ch.send(Command::DisableLogBuffer).unwrap_unchecked();
+            }
+        }
     }
 
+    #[inline]
     pub fn clear_log_buffer(&self) {
-        while self.log_buffer_recv_ch.try_recv().is_ok() {} //Clear the entire log buffer.
+        while self.log_buffer.pop().is_some() {} //Clear the entire log buffer.
     }
 
-    pub fn get_log_buffer(&self) -> Receiver<LogMsg> {
-        self.log_buffer_recv_ch.clone()
+    #[inline]
+    pub fn read_log(&self) -> Option<LogMsg> {
+        self.log_buffer.pop()
     }
 
     pub fn terminate(&self) {
@@ -162,15 +207,10 @@ impl LoggerImpl {
                 }
             }
             let recv_ch = self.recv_ch.clone();
+            let log_buffer = self.log_buffer.clone();
             *thread = Some(std::thread::spawn(move || {
-                let mut logger = logger;
-                while let Ok(v) = recv_ch.recv() {
-                    let flag = exec_commad(v, &mut logger);
-                    if flag {
-                        // The thread has requested to exit itself; drop out of the main loop.
-                        break;
-                    }
-                }
+                let thread = Thread::new(logger, recv_ch, log_buffer);
+                thread.run();
             }));
         }
         if flag {
@@ -186,21 +226,10 @@ impl LoggerImpl {
     }
 
     pub fn low_level_log(&self, msg: &LogMsg) {
-        if self.enable_log_buffer.load(Ordering::Acquire) {
-            unsafe {
-                // This cannot panic as both send_ch and log_buffer_send_ch are owned by LoggerImpl
-                // which is intended to be statically allocated.
-                self.send_ch
-                    .send(Command::Log(msg.clone()))
-                    .unwrap_unchecked();
-                self.log_buffer_send_ch.send(msg.clone()).unwrap_unchecked();
-            }
-        } else {
-            unsafe {
-                // This cannot panic as send_ch is owned by LoggerImpl which is intended
-                // to be statically allocated.
-                self.send_ch.send(Command::Log(msg.clone())).unwrap_unchecked();
-            }
+        unsafe {
+            // This cannot panic as send_ch is owned by LoggerImpl which is intended
+            // to be statically allocated.
+            self.send_ch.send(Command::Log(msg.clone())).unwrap_unchecked();
         }
     }
 

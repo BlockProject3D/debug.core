@@ -143,8 +143,10 @@ impl Default for Colors {
 ///     bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
 ///     //... application code with log redirect pump.
 ///     info!("Example message");
-///     let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
-///     println!("Last log message: {}", l.msg);
+///     bp3d_logger::flush();
+///     let l = bp3d_logger::read_log().unwrap();// Capture the last log message.
+///     //We can't test for equality because log messages contains a timestamp...
+///     assert!(l.msg().ends_with("Example message"));
 ///     bp3d_logger::disable_log_buffer();
 ///     //... application code without log redirect pump.
 /// }
@@ -278,9 +280,9 @@ pub fn disable_stdout() {
     ENABLE_STDOUT.store(false, Ordering::Release);
 }
 
-/// Returns the buffer from the log redirect pump.
-pub fn get_log_buffer() -> LogBuffer {
-    BP3D_LOGGER.get_log_buffer()
+/// Attempts to extract one log message from the buffer.
+pub fn read_log() -> Option<LogMsg> {
+    BP3D_LOGGER.read_log()
 }
 
 /// Low-level log function. This injects log messages directly into the logging thread channel.

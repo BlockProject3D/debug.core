@@ -1,6 +1,6 @@
 [package]
 name = "bp3d-logger"
-version = "2.0.0-pre.2.0.0"
+version = "2.0.0-pre.3.0.0"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2021"
 description = "A flexible Log implementation intended to be used with BP3D software."
@@ -16,6 +16,7 @@ categories = []
 log = "0.4.14"
 bp3d-fs = "1.0.0"
 crossbeam-channel = "0.5.2"
+crossbeam-queue = "0.3.8"
 once_cell = "1.10.0"
 chrono = "0.4.23"
 termcolor = "1.1.3"
