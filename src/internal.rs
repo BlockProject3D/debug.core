@@ -28,19 +28,19 @@
 
 use crate::backend::Backend;
 use crate::{LogMsg, Logger};
+use chrono::Local;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use log::{Level, Log, Metadata, Record};
+use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use chrono::Local;
-use std::fmt::Write;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
 enum Command {
     Flush,
     Log(LogMsg),
-    Terminate
+    Terminate,
 }
 
 fn log<T: Backend>(
@@ -97,7 +97,7 @@ pub struct LoggerImpl {
     log_buffer_send_ch: Sender<LogMsg>,
     log_buffer_recv_ch: Receiver<LogMsg>,
     enable_log_buffer: AtomicBool,
-    thread: Mutex<Option<std::thread::JoinHandle<()>>>
+    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
 }
 
 impl LoggerImpl {
@@ -179,7 +179,11 @@ impl LoggerImpl {
                 // This cannot panic as send_ch is owned by LoggerImpl which is intended
                 // to be statically allocated.
                 self.send_ch
-                    .send(Command::Log(LogMsg::from_msg("bp3d-logger", Level::Error, "The logging thread has panicked!")))
+                    .send(Command::Log(LogMsg::from_msg(
+                        "bp3d-logger",
+                        Level::Error,
+                        "The logging thread has panicked!",
+                    )))
                     .unwrap_unchecked();
             }
         }
@@ -199,7 +203,9 @@ impl LoggerImpl {
             unsafe {
                 // This cannot panic as send_ch is owned by LoggerImpl which is intended
                 // to be statically allocated.
-                self.send_ch.send(Command::Log(msg.clone())).unwrap_unchecked();
+                self.send_ch
+                    .send(Command::Log(msg.clone()))
+                    .unwrap_unchecked();
             }
         }
     }
@@ -234,7 +240,13 @@ impl Log for LoggerImpl {
         let time = Local::now();
         let formatted = time.format("%a %b %d %Y %I:%M:%S %P");
         let mut msg = LogMsg::new(target, record.level());
-        let _ = write!(msg, "({}) {}: {}", formatted, module.unwrap_or("main"), record.args());
+        let _ = write!(
+            msg,
+            "({}) {}: {}",
+            formatted,
+            module.unwrap_or("main"),
+            record.args()
+        );
         self.low_level_log(&msg);
     }
 
