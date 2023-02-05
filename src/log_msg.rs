@@ -61,9 +61,25 @@ fn u8_to_log(l: u8) -> Level {
     }
 }
 
+/// A log message.
+///
+/// This structure uses a large 1K buffer which stores the entire log message to improve
+/// performance.
+///
+/// The repr(C) is used to force the control fields (msg_len, level and target_len) to be before
+/// the message buffer and avoid large movs when setting control fields.
+///
+/// # Examples
+///
+/// ```
+/// use log::Level;
+/// use bp3d_logger::LogMsg;
+/// use std::fmt::Write;
+/// let mut msg = LogMsg::new("test", Level::Info);
+/// let _ = write!(msg, "This is a formatted message {}", 42);
+/// assert_eq!(msg.msg(), "This is a formatted message 42");
+/// ```
 #[derive(Clone)]
-// This repr is to force msg_len, level and target_len to appear first so that we don't
-// have to mov something after the 1K buffer.
 #[repr(C)]
 pub struct LogMsg {
     msg_len: u32,
@@ -73,6 +89,24 @@ pub struct LogMsg {
 }
 
 impl LogMsg {
+    /// Creates a new instance of log message buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `target`: the target name this log comes from.
+    /// * `level`: the [Level](Level) of the log message.
+    ///
+    /// returns: LogMsg
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use log::Level;
+    /// use bp3d_logger::LogMsg;
+    /// let msg = LogMsg::new("test", Level::Info);
+    /// assert_eq!(msg.target(), "test");
+    /// assert_eq!(msg.level(), Level::Info);
+    /// ```
     pub fn new(target: &str, level: Level) -> LogMsg {
         let len = std::cmp::min(LOG_TARGET_SIZE, target.as_bytes().len());
         let mut buffer = LogMsg {
@@ -91,18 +125,68 @@ impl LogMsg {
         buffer
     }
 
+    /// Clears the log message but keep the target and the level.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use log::Level;
+    /// use bp3d_logger::LogMsg;
+    /// let mut msg = LogMsg::from_msg("test", Level::Info, "this is a test");
+    /// msg.clear();
+    /// assert_eq!(msg.msg(), "");
+    /// assert_eq!(msg.target(), "test");
+    /// assert_eq!(msg.level(), Level::Info);
+    /// ```
     #[inline]
     pub fn clear(&mut self) {
         self.msg_len = self.target_len as _;
     }
 
+    /// Auto-creates a new log message with a pre-defined string message.
+    ///
+    /// This function is the same as calling [write](LogMsg::write) after [new](LogMsg::new).
+    ///
+    /// # Arguments
+    ///
+    /// * `target`: the target name this log comes from.
+    /// * `level`: the [Level](Level) of the log message.
+    /// * `msg`: the message string.
+    ///
+    /// returns: LogMsg
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use log::Level;
+    /// use bp3d_logger::LogMsg;
+    /// let mut msg = LogMsg::from_msg("test", Level::Info, "this is a test");
+    /// assert_eq!(msg.target(), "test");
+    /// assert_eq!(msg.level(), Level::Info);
+    /// assert_eq!(msg.msg(), "this is a test");
+    /// ```
     pub fn from_msg(target: &str, level: Level, msg: &str) -> LogMsg {
         let mut ads = Self::new(target, level);
         unsafe { ads.write(msg.as_bytes()) };
         ads
     }
 
-    // SAFETY: BufLogMsg must always contain valid UTF-8 so ensure that buf only contains valid UTF-8 data.
+    /// Appends a raw byte buffer at the end of the message buffer.
+    ///
+    /// Returns the number of bytes written.
+    ///
+    /// # Arguments
+    ///
+    /// * `buf`: the raw byte buffer to append.
+    ///
+    /// returns: usize
+    ///
+    /// # Safety
+    ///
+    /// * [LogMsg](LogMsg) contains only valid UTF-8 strings so buf must contain only valid UTF-8
+    /// bytes.
+    /// * If buf contains invalid UTF-8 bytes, further operations on the log message buffer may
+    /// result in UB.
     pub unsafe fn write(&mut self, buf: &[u8]) -> usize {
         let len = std::cmp::min(buf.len(), LOG_MSG_SIZE - self.msg_len as usize);
         if len > 0 {
@@ -116,6 +200,7 @@ impl LogMsg {
         len
     }
 
+    /// Returns the target name this log comes from.
     #[inline]
     pub fn target(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
@@ -124,6 +209,7 @@ impl LogMsg {
         }
     }
 
+    /// Returns the log message as a string.
     #[inline]
     pub fn msg(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
@@ -134,6 +220,7 @@ impl LogMsg {
         }
     }
 
+    /// Returns the level of this log message.
     #[inline]
     pub fn level(&self) -> Level {
         u8_to_log(self.level)
