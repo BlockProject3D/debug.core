@@ -33,18 +33,43 @@ use std::mem::MaybeUninit;
 // Limit the size of the target string to 16 bytes.
 const LOG_TARGET_SIZE: usize = 16;
 // Size of the control fields of the log message structure:
-// sizeof Level + 1 byte for target_len + sizeof msg_len
-const LOG_CONTROL_SIZE: usize = std::mem::size_of::<Level>() + std::mem::size_of::<u32>() + 1;
+// sizeof msg_len + 1 byte for target_len + 1 byte for level
+const LOG_CONTROL_SIZE: usize = std::mem::size_of::<u32>() + 2;
 // Limit the size of the log message string so that the size of the log structure is LOG_BUFFER_SIZE
 const LOG_MSG_SIZE: usize = LOG_BUFFER_SIZE - LOG_TARGET_SIZE - LOG_CONTROL_SIZE;
 const LOG_BUFFER_SIZE: usize = 1024;
 
+#[inline]
+fn log_to_u8(level: Level) -> u8 {
+    match level {
+        Level::Error => 0,
+        Level::Warn => 1,
+        Level::Info => 2,
+        Level::Debug => 3,
+        Level::Trace => 4
+    }
+}
+
+#[inline]
+fn u8_to_log(l: u8) -> Level {
+    match l {
+        0 => Level::Error,
+        1 => Level::Warn,
+        3 => Level::Debug,
+        4 => Level::Trace,
+        _ => Level::Info
+    }
+}
+
 #[derive(Clone)]
+// This repr is to force msg_len, level and target_len to appear first so that we don't
+// have to mov something after the 1K buffer.
+#[repr(C)]
 pub struct LogMsg {
-    buffer: [MaybeUninit<u8>; LOG_BUFFER_SIZE],
-    level: Level,
     msg_len: u32,
+    level: u8,
     target_len: u8,
+    buffer: [MaybeUninit<u8>; LOG_MSG_SIZE + LOG_TARGET_SIZE]
 }
 
 impl LogMsg {
@@ -54,7 +79,7 @@ impl LogMsg {
             buffer: unsafe { MaybeUninit::uninit().assume_init() },
             target_len: len as _,
             msg_len: len as _,
-            level,
+            level: log_to_u8(level),
         };
         unsafe {
             std::ptr::copy_nonoverlapping(
@@ -66,6 +91,7 @@ impl LogMsg {
         buffer
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.msg_len = self.target_len as _;
     }
@@ -90,6 +116,7 @@ impl LogMsg {
         len
     }
 
+    #[inline]
     pub fn target(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
         unsafe {
@@ -97,6 +124,7 @@ impl LogMsg {
         }
     }
 
+    #[inline]
     pub fn msg(&self) -> &str {
         // SAFEY: This is always safe because BufLogMsg is always UTF-8.
         unsafe {
@@ -106,8 +134,9 @@ impl LogMsg {
         }
     }
 
+    #[inline]
     pub fn level(&self) -> Level {
-        self.level
+        u8_to_log(self.level)
     }
 }
 
