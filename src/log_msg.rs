@@ -46,7 +46,7 @@ fn log_to_u8(level: Level) -> u8 {
         Level::Warn => 1,
         Level::Info => 2,
         Level::Debug => 3,
-        Level::Trace => 4
+        Level::Trace => 4,
     }
 }
 
@@ -57,7 +57,7 @@ fn u8_to_log(l: u8) -> Level {
         1 => Level::Warn,
         3 => Level::Debug,
         4 => Level::Trace,
-        _ => Level::Info
+        _ => Level::Info,
     }
 }
 
@@ -85,7 +85,7 @@ pub struct LogMsg {
     msg_len: u32,
     level: u8,
     target_len: u8,
-    buffer: [MaybeUninit<u8>; LOG_MSG_SIZE + LOG_TARGET_SIZE]
+    buffer: [MaybeUninit<u8>; LOG_MSG_SIZE + LOG_TARGET_SIZE],
 }
 
 impl LogMsg {

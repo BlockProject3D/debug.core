@@ -29,7 +29,6 @@
 // The reason why this is needed is because the 3 examples of usage of the Logger struct requires
 // some context to not make it confusing.
 #![allow(clippy::needless_doctest_main)]
-
 #![warn(missing_docs)]
 
 //! An async flexible Log implementation intended to be used with BP3D software.
