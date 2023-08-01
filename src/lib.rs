@@ -67,14 +67,14 @@ impl<'a> GetLogs for &'a String {
 
 impl<'a, 'b> GetLogs for &'a App<'b> {
     fn get_logs(self) -> Option<PathBuf> {
-        self.get_logs().map(|v| v.as_ref().into())
+        self.get_logs().map(|v| v.create())?.ok().map(|v| v.into())
     }
 }
 
 impl<'a> GetLogs for &'a str {
     fn get_logs(self) -> Option<PathBuf> {
         let app = App::new(self);
-        app.get_logs().map(|v| v.as_ref().into())
+        app.get_logs().map(|v| v.create())?.ok().map(|v| v.into())
     }
 }
 
