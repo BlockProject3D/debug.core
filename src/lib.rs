@@ -39,7 +39,7 @@ mod internal;
 mod log_msg;
 
 use crate::backend::ENABLE_STDOUT;
-use bp3d_fs::dirs::App;
+use bp3d_os::dirs::App;
 use crossbeam_channel::Receiver;
 use log::Log;
 use once_cell::sync::Lazy;
@@ -51,7 +51,7 @@ pub use log_msg::LogMsg;
 /// The log buffer type.
 pub type LogBuffer = Receiver<LogMsg>;
 
-/// Trait to allow getting a log directory from either a bp3d_fs::dirs::App or a String.
+/// Trait to allow getting a log directory from either a bp3d_os::dirs::App or a String.
 pub trait GetLogs {
     /// Gets the log directory as a PathBuf.
     ///
@@ -67,14 +67,14 @@ impl<'a> GetLogs for &'a String {
 
 impl<'a, 'b> GetLogs for &'a App<'b> {
     fn get_logs(self) -> Option<PathBuf> {
-        self.get_logs().map(|v| v.into()).ok()
+        self.get_logs().map(|v| v.as_ref().into())
     }
 }
 
 impl<'a> GetLogs for &'a str {
     fn get_logs(self) -> Option<PathBuf> {
         let app = App::new(self);
-        app.get_logs().map(|v| v.into()).ok()
+        app.get_logs().map(|v| v.as_ref().into())
     }
 }
 

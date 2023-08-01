@@ -14,7 +14,7 @@ categories = []
 
 [dependencies]
 log = "0.4.14"
-bp3d-fs = "1.0.0"
+bp3d-os = { version = "1.0.0-rc.1.0.0", features=["dirs"] }
 crossbeam-channel = "0.5.2"
 crossbeam-queue = "0.3.8"
 once_cell = "1.10.0"
