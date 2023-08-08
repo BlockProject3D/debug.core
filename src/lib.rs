@@ -291,7 +291,7 @@ pub fn read_log() -> Option<LogMsg> {
 /// Low-level log function. This injects log messages directly into the logging thread channel.
 ///
 /// This function applies basic formatting depending on the backend:
-/// - For stdout/stderr backend the format is <target> \[level\] msg
+/// - For stdout/stderr backend the format is \<target\> \[level\] msg
 /// - For file backend the format is \[level\] msg and the message is recorded in the file
 /// corresponding to the log target.
 pub fn raw_log(msg: &LogMsg) {
