@@ -32,11 +32,11 @@ use bp3d_os::time::LocalOffsetDateTime;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use crossbeam_queue::ArrayQueue;
 use log::{Level, Log, Metadata, Record};
-use time::OffsetDateTime;
-use time::macros::format_description;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use time::macros::format_description;
+use time::OffsetDateTime;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -278,7 +278,10 @@ impl Log for LoggerImpl {
         let (target, module) = extract_target_module(record);
         let time = OffsetDateTime::now_local();
         let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
-        let formatted = time.unwrap_or_else(OffsetDateTime::now_utc).format(format).unwrap_or_default();
+        let formatted = time
+            .unwrap_or_else(OffsetDateTime::now_utc)
+            .format(format)
+            .unwrap_or_default();
         let mut msg = LogMsg::new(target, record.level());
         let _ = write!(
             msg,
