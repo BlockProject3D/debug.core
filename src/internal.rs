@@ -276,7 +276,7 @@ impl Log for LoggerImpl {
             return;
         }
         let (target, module) = extract_target_module(record);
-        let time = OffsetDateTime::now_local();
+        let time = Some(OffsetDateTime::now_utc());
         let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
         let formatted = time.unwrap_or_else(OffsetDateTime::now_utc).format(format).unwrap_or_default();
         let mut msg = LogMsg::new(target, record.level());
