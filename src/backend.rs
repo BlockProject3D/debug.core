@@ -33,7 +33,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write, IsTerminal};
+use std::io::{BufWriter, IsTerminal, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use termcolor::{ColorChoice, ColorSpec, StandardStream};
@@ -78,7 +78,7 @@ fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
 
 enum Stream {
     Stdout,
-    Stderr
+    Stderr,
 }
 
 impl Stream {
