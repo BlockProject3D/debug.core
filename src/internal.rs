@@ -40,6 +40,10 @@ use time::OffsetDateTime;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
+//Disable large_enum_variant as using a Box will inevitably cause a small allocation on a critical path,
+//allocating in a critical code path will most likely result in degraded performance.
+//And yes, logging is a critical path when using bp3d-tracing.
+#[allow(clippy::large_enum_variant)]
 enum Command {
     Flush,
     Log(LogMsg),
