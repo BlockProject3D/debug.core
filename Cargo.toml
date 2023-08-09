@@ -14,11 +14,11 @@ categories = []
 
 [dependencies]
 log = "0.4.14"
-bp3d-os = { version = "1.0.0-rc.1.1.0", features=["dirs"] }
+bp3d-os = { version = "1.0.0-rc.1.2.0", features=["dirs", "time"] }
 crossbeam-channel = "0.5.2"
 crossbeam-queue = "0.3.8"
 once_cell = "1.10.0"
-chrono = "0.4.23"
+time = { version = "0.3.0", features = ["formatting", "macros"] }
 termcolor = "1.1.3"
 atty = "0.2.14"
 

@@ -28,10 +28,12 @@
 
 use crate::backend::Backend;
 use crate::{LogMsg, Logger};
-use chrono::Local;
+use bp3d_os::time::LocalOffsetDateTime;
 use crossbeam_channel::{bounded, Receiver, Sender};
 use crossbeam_queue::ArrayQueue;
 use log::{Level, Log, Metadata, Record};
+use time::OffsetDateTime;
+use time::macros::format_description;
 use std::fmt::Write;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -274,8 +276,9 @@ impl Log for LoggerImpl {
             return;
         }
         let (target, module) = extract_target_module(record);
-        let time = Local::now();
-        let formatted = time.format("%a %b %d %Y %I:%M:%S %P");
+        let time = OffsetDateTime::now_local();
+        let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
+        let formatted = time.unwrap_or_else(OffsetDateTime::now_utc).format(format).unwrap_or_default();
         let mut msg = LogMsg::new(target, record.level());
         let _ = write!(
             msg,
