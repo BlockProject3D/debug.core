@@ -1,4 +1,4 @@
-// Copyright (c) 2021, BlockProject 3D
+// Copyright (c) 2023, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -29,36 +29,29 @@
 // The reason why this is needed is because the 3 examples of usage of the Logger struct requires
 // some context to not make it confusing.
 #![allow(clippy::needless_doctest_main)]
+#![warn(missing_docs)]
+
+//! An async flexible Log implementation intended to be used with BP3D software.
 
 mod backend;
 mod easy_termcolor;
 mod internal;
+mod log_msg;
 
 use crate::backend::ENABLE_STDOUT;
-use bp3d_fs::dirs::App;
+use bp3d_os::dirs::App;
 use crossbeam_channel::Receiver;
-use log::{Level, Log};
+use log::Log;
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
-/// Represents a log message in the [LogBuffer](crate::LogBuffer).
-#[derive(Clone)]
-pub struct LogMsg {
-    /// The message string.
-    pub msg: String,
-
-    /// The crate name that issued this log.
-    pub target: String,
-
-    /// The log level.
-    pub level: Level,
-}
+pub use log_msg::LogMsg;
 
 /// The log buffer type.
 pub type LogBuffer = Receiver<LogMsg>;
 
-/// Trait to allow getting a log directory from either a bp3d_fs::dirs::App or a String.
+/// Trait to allow getting a log directory from either a bp3d_os::dirs::App or a String.
 pub trait GetLogs {
     /// Gets the log directory as a PathBuf.
     ///
@@ -74,14 +67,14 @@ impl<'a> GetLogs for &'a String {
 
 impl<'a, 'b> GetLogs for &'a App<'b> {
     fn get_logs(self) -> Option<PathBuf> {
-        self.get_logs().map(|v| v.into()).ok()
+        self.get_logs().map(|v| v.create())?.ok().map(|v| v.into())
     }
 }
 
 impl<'a> GetLogs for &'a str {
     fn get_logs(self) -> Option<PathBuf> {
         let app = App::new(self);
-        app.get_logs().map(|v| v.into()).ok()
+        app.get_logs().map(|v| v.create())?.ok().map(|v| v.into())
     }
 }
 
@@ -153,8 +146,10 @@ impl Default for Colors {
 ///     bp3d_logger::enable_log_buffer(); // Enable log redirect pump into application channel.
 ///     //... application code with log redirect pump.
 ///     info!("Example message");
-///     let l = bp3d_logger::get_log_buffer().recv().unwrap();// Capture the last log message.
-///     println!("Last log message: {}", l.msg);
+///     bp3d_logger::flush();
+///     let l = bp3d_logger::read_log().unwrap();// Capture the last log message.
+///     //We can't test for equality because log messages contains a timestamp...
+///     assert!(l.msg().ends_with("Example message"));
 ///     bp3d_logger::disable_log_buffer();
 ///     //... application code without log redirect pump.
 /// }
@@ -207,7 +202,7 @@ impl Logger {
 
     /// Enables file logging to the given application.
     ///
-    /// The application is given as a reference to [GetLogs](crate::GetLogs) to allow obtaining
+    /// The application is given as a reference to [GetLogs](GetLogs) to allow obtaining
     /// a log directory from various sources.
     ///
     /// If the log directory could not be found the function prints an error to stderr.
@@ -288,18 +283,18 @@ pub fn disable_stdout() {
     ENABLE_STDOUT.store(false, Ordering::Release);
 }
 
-/// Returns the buffer from the log redirect pump.
-pub fn get_log_buffer() -> LogBuffer {
-    BP3D_LOGGER.get_log_buffer()
+/// Attempts to extract one log message from the buffer.
+pub fn read_log() -> Option<LogMsg> {
+    BP3D_LOGGER.read_log()
 }
 
 /// Low-level log function. This injects log messages directly into the logging thread channel.
 ///
 /// This function applies basic formatting depending on the backend:
-/// - For stdout/stderr backend the format is <target> \[level\] msg
+/// - For stdout/stderr backend the format is \<target\> \[level\] msg
 /// - For file backend the format is \[level\] msg and the message is recorded in the file
 /// corresponding to the log target.
-pub fn raw_log(msg: LogMsg) {
+pub fn raw_log(msg: &LogMsg) {
     BP3D_LOGGER.low_level_log(msg)
 }
 

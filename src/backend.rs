@@ -1,4 +1,4 @@
-// Copyright (c) 2021, BlockProject 3D
+// Copyright (c) 2023, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -28,13 +28,12 @@
 
 use crate::easy_termcolor::{color, EasyTermColor};
 use crate::Colors;
-use atty::Stream;
 use log::Level;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fs::{File, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, IsTerminal, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use termcolor::{ColorChoice, ColorSpec, StandardStream};
@@ -72,9 +71,23 @@ fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
         .color(color(level))
         .write(level)
         .reset()
-        .write(']')
-        .write(format!(" {}", msg))
+        .write("] ")
+        .write(msg)
         .lf();
+}
+
+enum Stream {
+    Stdout,
+    Stderr,
+}
+
+impl Stream {
+    pub fn isatty(&self) -> bool {
+        match self {
+            Stream::Stdout => std::io::stdout().is_terminal(),
+            Stream::Stderr => std::io::stderr().is_terminal(),
+        }
+    }
 }
 
 impl StdBackend {
@@ -108,7 +121,7 @@ impl Backend for StdBackend {
         let use_termcolor = match self.colors {
             Colors::Disabled => false,
             Colors::Enabled => true,
-            Colors::Auto => atty::is(stream),
+            Colors::Auto => stream.isatty(),
         };
         match use_termcolor {
             true => {

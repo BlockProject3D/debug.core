@@ -1,6 +1,6 @@
 [package]
 name = "bp3d-logger"
-version = "1.1.0"
+version = "2.0.0-rc.1.0.0"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2021"
 description = "A flexible Log implementation intended to be used with BP3D software."
@@ -14,12 +14,11 @@ categories = []
 
 [dependencies]
 log = "0.4.14"
-bp3d-fs = "1.0.0"
+bp3d-os = { version = "1.0.0-rc.1.2.1", features=["dirs", "time"] }
 crossbeam-channel = "0.5.2"
+crossbeam-queue = "0.3.8"
 once_cell = "1.10.0"
-time = { version = "0.3.7", features = ["formatting", "macros"] }
-time-tz = { version = "0.3.1", features = ["system"] }
+time = { version = "0.3.0", features = ["formatting", "macros"] }
 termcolor = "1.1.3"
-atty = "0.2.14"
 
 [features]
