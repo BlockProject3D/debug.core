@@ -26,59 +26,59 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::fmt::Display;
-use termcolor::{Color, ColorSpec};
-use crate::Level;
+use std::fmt::{Display, Formatter};
 
-pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
+/// An enum representing the available verbosity levels of the logger.
+#[repr(u8)]
+#[derive(Clone, PartialEq, Copy, Ord, PartialOrd, Eq, Debug, Hash)]
+pub enum Level {
+    /// The "none" level.
+    ///
+    /// This level is used to disable logging.
+    None = 0,
 
-impl<T: termcolor::WriteColor> EasyTermColor<T> {
-    pub fn write(mut self, elem: impl Display) -> Self {
-        let _ = write!(&mut self.0, "{}", elem);
-        self
-    }
+    /// The "error" level.
+    ///
+    /// Designates very serious errors.
+    // This way these line up with the discriminants for LevelFilter below
+    // This works because Rust treats field-less enums the same way as C does:
+    // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
+    Error = 1,
 
-    pub fn color(mut self, elem: ColorSpec) -> Self {
-        let _ = self.0.set_color(&elem);
-        self
-    }
+    /// The "warn" level.
+    ///
+    /// Designates hazardous situations.
+    Warn = 2,
 
-    pub fn reset(mut self) -> Self {
-        let _ = self.0.reset();
-        self
-    }
+    /// The "info" level.
+    ///
+    /// Designates useful information.
+    Info = 3,
 
-    pub fn lf(mut self) -> Self {
-        let _ = writeln!(&mut self.0);
-        self
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug = 4,
+
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace = 5
+}
+
+static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
+
+impl Level {
+    /// Returns the string representation of the `Level`.
+    ///
+    /// This returns the same string as the `fmt::Display` implementation.
+    pub fn as_str(&self) -> &'static str {
+        LOG_LEVEL_NAMES[*self as usize]
     }
 }
 
-pub fn color(level: Level) -> ColorSpec {
-    match level {
-        Level::None => ColorSpec::new()
-            .set_fg(Some(Color::White))
-            .set_bold(true)
-            .clone(),
-        Level::Error => ColorSpec::new()
-            .set_fg(Some(Color::Red))
-            .set_bold(true)
-            .clone(),
-        Level::Warn => ColorSpec::new()
-            .set_fg(Some(Color::Yellow))
-            .set_bold(true)
-            .clone(),
-        Level::Info => ColorSpec::new()
-            .set_fg(Some(Color::Green))
-            .set_bold(true)
-            .clone(),
-        Level::Debug => ColorSpec::new()
-            .set_fg(Some(Color::Blue))
-            .set_bold(true)
-            .clone(),
-        Level::Trace => ColorSpec::new()
-            .set_fg(Some(Color::Cyan))
-            .set_bold(true)
-            .clone(),
+impl Display for Level {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
     }
 }

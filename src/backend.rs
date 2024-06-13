@@ -1,4 +1,4 @@
-// Copyright (c) 2023, BlockProject 3D
+// Copyright (c) 2024, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -27,14 +27,14 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::easy_termcolor::{color, EasyTermColor};
-use crate::Colors;
-use log::Level;
+use crate::{Colors, Level};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, IsTerminal, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use termcolor::{ColorChoice, ColorSpec, StandardStream};
 
@@ -52,11 +52,10 @@ impl Display for DummyError {
     }
 }
 
-pub static ENABLE_STDOUT: AtomicBool = AtomicBool::new(true);
-
 pub struct StdBackend {
     smart_stderr: bool,
     colors: Colors,
+    enable: Arc<AtomicBool>
 }
 
 fn write_msg(stream: StandardStream, target: &str, msg: &str, level: Level) {
@@ -95,7 +94,12 @@ impl StdBackend {
         StdBackend {
             smart_stderr,
             colors,
+            enable: Arc::new(AtomicBool::new(true))
         }
+    }
+
+    pub fn get_enable(&self) -> Arc<AtomicBool> {
+        self.enable.clone()
     }
 
     fn get_stream(&self, level: Level) -> Stream {
@@ -113,7 +117,7 @@ impl Backend for StdBackend {
     type Error = DummyError;
 
     fn write(&mut self, target: &str, msg: &str, level: Level) -> Result<(), Self::Error> {
-        if !ENABLE_STDOUT.load(Ordering::Acquire) {
+        if !self.enable.load(Ordering::Acquire) {
             // Skip logging if temporarily disabled.
             return Ok(());
         }

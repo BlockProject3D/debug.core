@@ -5,7 +5,7 @@ authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2021"
 description = "A flexible Log implementation intended to be used with BP3D software."
 license = "BSD-3-Clause"
-repository = "https://gitlab.com/bp3d/logger"
+repository = "https://github.com/BlockProject3D/debug.logger"
 readme = "./README.MD"
 keywords = []
 categories = []
@@ -13,7 +13,6 @@ categories = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = "0.4.14"
 bp3d-os = { version = "1.0.0-rc.1.2.1", features=["dirs", "time"] }
 crossbeam-channel = "0.5.2"
 crossbeam-queue = "0.3.8"
