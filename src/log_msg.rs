@@ -236,6 +236,7 @@ impl LogMsg {
     /// bytes.
     /// * If buf contains invalid UTF-8 bytes, further operations on the log message buffer may
     /// result in UB.
+    #[allow(clippy::missing_transmute_annotations)]
     pub unsafe fn write(&mut self, buf: &[u8]) -> usize {
         let len = std::cmp::min(buf.len(), LOG_MSG_SIZE - self.msg_len as usize);
         if len > 0 {
@@ -263,6 +264,7 @@ impl LogMsg {
 
     /// Returns the log message as a string.
     #[inline]
+    #[allow(clippy::missing_transmute_annotations)]
     pub fn msg(&self) -> &str {
         // SAFETY: This is always safe because LogMsg is always UTF-8.
         unsafe {

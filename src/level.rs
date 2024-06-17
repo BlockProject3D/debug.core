@@ -76,6 +76,7 @@ impl LevelFilter {
     /// * `value`: the value to convert from.
     ///
     /// returns: Option<LevelFilter>
+    #[allow(clippy::missing_transmute_annotations)]
     pub fn from_u8(value: u8) -> Option<Self> {
         if value > 5 {
             None
