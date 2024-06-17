@@ -29,8 +29,9 @@
 use crate::{LogMsg, Builder};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::mem::ManuallyDrop;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use crate::handler::{Flag, Handler};
+use crate::level::LevelFilter;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -52,12 +53,12 @@ struct Thread {
 
 impl Thread {
     pub fn new(
-        builder: Builder,
+        handlers: Vec<Box<dyn Handler>>,
         recv_ch: Receiver<Command>,
         enable_stdout: Flag
     ) -> Thread {
         Thread {
-            handlers: builder.handlers,
+            handlers,
             recv_ch,
             enable_stdout
         }
@@ -98,13 +99,10 @@ impl Thread {
 /// The main Logger type allows to control the entire logger state and submit messages for logging.
 pub struct Logger {
     send_ch: Sender<Command>,
-    enabled: AtomicBool,
+    level: AtomicU8,
     enable_stdout: Flag,
     thread: ManuallyDrop<std::thread::JoinHandle<()>>,
 }
-
-//TODO: Implement log Level checking for Logger2.checked_log and support setting/getting current log level.
-//TODO: Implement support for multiple custom log backends.
 
 impl Logger {
     pub(crate) fn new(builder: Builder) -> Logger {
@@ -114,13 +112,13 @@ impl Logger {
         let enable_stdout = Flag::new(true);
         let enable_stdout1 = enable_stdout.clone();
         let thread = std::thread::spawn(move || {
-            let thread = Thread::new(builder, recv_ch1, enable_stdout1);
+            let thread = Thread::new(builder.handlers, recv_ch1, enable_stdout1);
             thread.run();
         });
         Logger {
             thread: ManuallyDrop::new(thread),
             send_ch,
-            enabled: AtomicBool::new(true),
+            level: AtomicU8::new(builder.filter as u8),
             enable_stdout
         }
     }
@@ -132,11 +130,6 @@ impl Logger {
     /// * `flag`: true to enable stdout, false to disable stdout.
     pub fn enable_stdout(&self, flag: bool) {
         self.enable_stdout.set(flag);
-    }
-
-    /// Enables this logger.
-    pub fn enable(&self, flag: bool) {
-        self.enabled.store(flag, Ordering::Release);
     }
 
     /// Low-level log function. This injects log messages directly into the logging thread channel.
@@ -166,15 +159,29 @@ impl Logger {
     /// This function calls the [raw_log](Self::raw_log) function only when this logger is enabled.
     #[inline]
     pub fn log(&self, msg: &LogMsg) {
-        if self.is_enabled() {
+        if self.filter() >= msg.level().as_level_filter() {
             self.raw_log(msg);
         }
+    }
+
+    /// Returns the filter level of this logger instance.
+    pub fn filter(&self) -> LevelFilter {
+        unsafe { LevelFilter::from_u8(self.level.load(Ordering::Acquire)).unwrap_unchecked() }
+    }
+
+    /// Sets the new level filter for this logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter`: the new [LevelFilter](LevelFilter).
+    pub fn set_filter(&self, filter: LevelFilter) {
+        self.level.store(filter as u8, Ordering::Release);
     }
 
     /// Returns true if the logger is currently enabled and is capturing log messages.
     #[inline]
     pub fn is_enabled(&self) -> bool {
-        self.enabled.load(Ordering::Acquire)
+        self.filter() > LevelFilter::None
     }
 
     /// Flushes all pending messages.
@@ -194,7 +201,7 @@ impl Logger {
 impl Drop for Logger {
     fn drop(&mut self) {
         // Disable this Logger.
-        self.enable(false);
+        self.set_filter(LevelFilter::None);
 
         // Send termination command and join with logging thread.
         // This cannot panic as send_ch is owned by LoggerImpl which is intended

@@ -29,11 +29,9 @@
 //! Logging utilities.
 
 use std::fmt::Write;
-use bp3d_os::time::LocalOffsetDateTime;
 use bp3d_util::format::IoToFmt;
 use time::macros::format_description;
 use time::OffsetDateTime;
-use crate::LogMsg;
 
 /// Extracts the target name and the module path (without the target name) from a full module path string.
 ///

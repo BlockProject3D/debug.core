@@ -48,7 +48,7 @@ use std::path::PathBuf;
 pub use log_msg::{LogMsg, Location};
 pub use builder::*;
 pub use internal::Logger;
-pub use level::Level;
+pub use level::{Level, LevelFilter};
 
 /// The log buffer type.
 pub type LogBuffer = Receiver<LogMsg>;

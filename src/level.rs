@@ -31,11 +31,31 @@ use std::fmt::{Display, Formatter};
 /// An enum representing the available verbosity levels of the logger.
 #[repr(u8)]
 #[derive(Clone, PartialEq, Copy, Ord, PartialOrd, Eq, Debug, Hash)]
-pub enum Level {
+pub enum LevelFilter {
     /// The "none" level.
     ///
     /// This level is used to disable logging.
     None = 0,
+
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace = 1,
+
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug = 2,
+
+    /// The "info" level.
+    ///
+    /// Designates useful information.
+    Info = 3,
+
+    /// The "warn" level.
+    ///
+    /// Designates hazardous situations.
+    Warn = 4,
 
     /// The "error" level.
     ///
@@ -43,30 +63,64 @@ pub enum Level {
     // This way these line up with the discriminants for LevelFilter below
     // This works because Rust treats field-less enums the same way as C does:
     // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
-    Error = 1,
+    Error = 5
+}
 
-    /// The "warn" level.
+impl LevelFilter {
+    /// Creates a new [LevelFilter](LevelFilter) from an existing u8 value.
     ///
-    /// Designates hazardous situations.
-    Warn = 2,
+    /// This returns None if the value could not be found.
+    ///
+    /// # Arguments
+    ///
+    /// * `value`: the value to convert from.
+    ///
+    /// returns: Option<LevelFilter>
+    pub fn from_u8(value: u8) -> Option<Self> {
+        if value > 5 {
+            None
+        } else {
+            // SAFETY: This is safe because LevelFilter is a u8 and we have checked that the variant
+            // index is not out of bounds.
+            unsafe { std::mem::transmute(value) }
+        }
+    }
+}
+
+/// An enum representing the available verbosity levels for a message.
+#[repr(u8)]
+#[derive(Clone, PartialEq, Copy, Ord, PartialOrd, Eq, Debug, Hash)]
+pub enum Level {
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace = 1,
+
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug = 2,
 
     /// The "info" level.
     ///
     /// Designates useful information.
     Info = 3,
 
-    /// The "debug" level.
+    /// The "warn" level.
     ///
-    /// Designates lower priority information.
-    Debug = 4,
+    /// Designates hazardous situations.
+    Warn = 4,
 
-    /// The "trace" level.
+    /// The "error" level.
     ///
-    /// Designates very low priority, often extremely verbose, information.
-    Trace = 5
+    /// Designates very serious errors.
+    // This way these line up with the discriminants for LevelFilter below
+    // This works because Rust treats field-less enums the same way as C does:
+    // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
+    Error = 5
 }
 
-static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"];
+static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR"];
 
 impl Level {
     /// Returns the string representation of the `Level`.
@@ -74,6 +128,15 @@ impl Level {
     /// This returns the same string as the `fmt::Display` implementation.
     pub fn as_str(&self) -> &'static str {
         LOG_LEVEL_NAMES[*self as usize]
+    }
+
+    /// Returns the [LevelFilter](LevelFilter) representation of this log [Level](Level).
+    #[allow(clippy::missing_transmute_annotations)]
+    pub fn as_level_filter(&self) -> LevelFilter {
+        // SAFETY: This is safe because both Level and LevelFilter are u8 values and Level shares
+        // the same variants as LevelFilter (with the exception that LevelFilter has one more
+        // variant at 0).
+        unsafe { std::mem::transmute(*self) }
     }
 }
 

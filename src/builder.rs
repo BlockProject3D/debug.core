@@ -29,6 +29,7 @@
 use crate::GetLogs;
 use crate::handler::{FileHandler, Handler, StdHandler};
 use crate::internal::Logger;
+use crate::level::LevelFilter;
 
 /// Enum of the different color settings when printing to stdout/stderr.
 #[derive(Debug, Copy, Clone)]
@@ -66,7 +67,7 @@ impl Default for Colors {
 ///
 /// The following example shows initialization of this logger and use of the log buffer.
 /// ```
-/// use bp3d_logger::{Builder, Level, LogMsg, Location, handler::{LogQueue, LogQueueHandler}};
+/// use bp3d_logger::{Builder, Level, LogMsg, Location, LevelFilter, handler::{LogQueue, LogQueueHandler}};
 ///
 /// fn main() {
 ///     let queue = LogQueue::default();
@@ -74,10 +75,10 @@ impl Default for Colors {
 ///
 ///     //... application code with log redirect pump.///
 ///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message"));
-///     logger.enable(false);
+///     logger.set_filter(LevelFilter::None);
 ///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Dropped message"));
 ///     logger.raw_log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message 1"));
-///     logger.enable(true);
+///     logger.set_filter(LevelFilter::Info);
 ///
 ///     logger.flush();
 ///     let l = queue.pop().unwrap(); // Capture the last log message.
@@ -92,7 +93,8 @@ pub struct Builder {
     pub(crate) colors: Colors,
     pub(crate) smart_stderr: bool,
     pub(crate) buf_size: Option<usize>,
-    pub(crate) handlers: Vec<Box<dyn Handler>>
+    pub(crate) handlers: Vec<Box<dyn Handler>>,
+    pub(crate) filter: LevelFilter
 }
 
 impl Default for Builder {
@@ -101,7 +103,8 @@ impl Default for Builder {
             colors: Colors::default(),
             smart_stderr: true,
             buf_size: None,
-            handlers: Vec::new()
+            handlers: Vec::new(),
+            filter: LevelFilter::Info
         }
     }
 }
@@ -117,6 +120,14 @@ impl Builder {
     /// The default behavior is to disable colors.
     pub fn colors(mut self, state: Colors) -> Self {
         self.colors = state;
+        self
+    }
+
+    /// Sets the default level filter when initializing the logger.
+    ///
+    /// The default is [Info](LevelFilter::Info).
+    pub fn filter(mut self, filter: LevelFilter) -> Self {
+        self.filter = filter;
         self
     }
 
@@ -153,7 +164,7 @@ impl Builder {
     }
 
     /// Enables stdout logging.
-    pub fn add_stdout(mut self) -> Self {
+    pub fn add_stdout(self) -> Self {
         let motherfuckingrust = self.smart_stderr;
         let motherfuckingrust1 = self.colors;
         self.add_handler(StdHandler::new(motherfuckingrust, motherfuckingrust1))
@@ -165,7 +176,7 @@ impl Builder {
     /// a log directory from various sources.
     ///
     /// If the log directory could not be found the function prints an error to stderr.
-    pub fn add_file<T: GetLogs>(mut self, app: T) -> Self {
+    pub fn add_file<T: GetLogs>(self, app: T) -> Self {
         if let Some(logs) = app.get_logs() {
             self.add_handler(FileHandler::new(logs))
         } else {

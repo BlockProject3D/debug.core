@@ -34,8 +34,7 @@ mod log_queue;
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use time::OffsetDateTime;
-use crate::{Level, Location, LogMsg};
+use crate::LogMsg;
 
 /// A dynamic atomic flag.
 #[derive(Clone)]

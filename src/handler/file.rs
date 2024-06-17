@@ -32,9 +32,8 @@ use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use bp3d_util::format::{FixedBufStr, IoToFmt};
 use time::format_description::well_known::Iso8601;
-use time::OffsetDateTime;
 use crate::handler::{Flag, Handler};
-use crate::{Level, Location, LogMsg};
+use crate::LogMsg;
 
 /// A file handler which writes log messages into different files each named by the target name.
 pub struct FileHandler {

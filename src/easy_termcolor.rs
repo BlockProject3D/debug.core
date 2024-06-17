@@ -56,10 +56,6 @@ impl<T: termcolor::WriteColor> EasyTermColor<T> {
 
 pub fn color(level: Level) -> ColorSpec {
     match level {
-        Level::None => ColorSpec::new()
-            .set_fg(Some(Color::White))
-            .set_bold(true)
-            .clone(),
         Level::Error => ColorSpec::new()
             .set_fg(Some(Color::Red))
             .set_bold(true)
