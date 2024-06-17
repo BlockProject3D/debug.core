@@ -26,65 +26,79 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-//! The log handler system, with default provided handlers.
-
-mod stdout;
-mod file;
-mod log_queue;
-
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use time::OffsetDateTime;
-use crate::{Level, Location, LogMsg};
+use crossbeam_queue::ArrayQueue;
+use crate::handler::{Flag, Handler};
+use crate::LogMsg;
 
-/// A dynamic atomic flag.
+const DEFAULT_BUF_SIZE: usize = 32;
+
+/// A log queue.
+///
+/// The default size of the log queue is 32 log messages, that is 32 * 1024 = 32768 bytes.
 #[derive(Clone)]
-pub struct Flag(Arc<AtomicBool>);
+pub struct LogQueue(Arc<ArrayQueue<LogMsg>>);
 
-impl Flag {
-
-    /// Creates a new flag.
-    ///
-    /// # Arguments
-    ///
-    /// * `initial`: the initial value of this flag.
-    ///
-    /// returns: Flag
-    pub fn new(initial: bool) -> Self {
-        Self(Arc::new(AtomicBool::new(initial)))
-    }
-
-    /// Returns true if this flag is ON, false otherwise.
-    pub fn is_enabled(&self) -> bool {
-        self.0.load(Ordering::Acquire)
-    }
-
-    /// Sets this flag.
-    pub fn set(&self, flag: bool) {
-        self.0.store(flag, Ordering::Release);
+impl Default for LogQueue {
+    fn default() -> Self {
+        Self::new(DEFAULT_BUF_SIZE)
     }
 }
 
-/// The main handler trait.
-pub trait Handler: Send {
-    /// Called when the handler is installed in the async logging thread.
+impl LogQueue {
+    /// Creates a new [LogQueue](LogQueue).
+    ///
+    /// The queue acts as a ring-buffer, when it is full, new logs are inserted replacing older
+    /// logs.
     ///
     /// # Arguments
     ///
-    /// * `enable_stdout`: boolean flag to know if printing to stdout is allowed.
-    fn install(&mut self, enable_stdout: &Flag);
-
-    /// Called when a message is being written.
+    /// * `buffer_size`: the size of the buffer.
     ///
-    /// # Arguments
-    ///
-    /// * `msg`: the log message which was emitted as a [LogMsg](LogMsg).
-    fn write(&mut self, msg: &LogMsg);
+    /// returns: LogBuffer
+    pub fn new(buffer_size: usize) -> Self {
+        Self(Arc::new(ArrayQueue::new(buffer_size)))
+    }
 
-    /// Called when the flush command is received in the async logging thread.
-    fn flush(&mut self);
+    /// Pops an element from the queue if any.
+    pub fn pop(&self) -> Option<LogMsg> {
+        self.0.pop()
+    }
+
+    /// Clears the log queue.
+    pub fn clear(&self) {
+        while self.pop().is_some() {}
+    }
 }
 
-pub use file::FileHandler;
-pub use stdout::StdHandler;
-pub use log_queue::{LogQueueHandler, LogQueue};
+/// A basic handler which redirects log messages to a queue.
+pub struct LogQueueHandler {
+    queue: LogQueue
+}
+
+impl LogQueueHandler {
+    /// Creates a new [LogQueueHandler](LogQueueHandler)
+    ///
+    /// # Arguments
+    ///
+    /// * `queue`: the queue to record log messages into.
+    ///
+    /// returns: LogQueueHandler
+    pub fn new(queue: LogQueue) -> Self {
+        Self {
+            queue
+        }
+    }
+}
+
+impl Handler for LogQueueHandler {
+    fn install(&mut self, _: &Flag) {
+    }
+
+    fn write(&mut self, msg: &LogMsg) {
+        self.queue.0.force_push(msg.clone());
+    }
+
+    fn flush(&mut self) {
+    }
+}

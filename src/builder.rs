@@ -66,25 +66,25 @@ impl Default for Colors {
 ///
 /// The following example shows initialization of this logger and use of the log buffer.
 /// ```
-/// use bp3d_logger::{Builder, Level, LogMsg, Location};
+/// use bp3d_logger::{Builder, Level, LogMsg, Location, handler::{LogQueue, LogQueueHandler}};
 ///
 /// fn main() {
-///     let logger = Builder::new().add_stdout().start();
-///     logger.enable_log_buffer(true); // Enable log redirect pump into application channel.
+///     let queue = LogQueue::default();
+///     let logger = Builder::new().add_stdout().add_handler(LogQueueHandler::new(queue.clone())).start();
 ///
 ///     //... application code with log redirect pump.///
 ///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message"));
 ///     logger.enable(false);
+///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Dropped message"));
 ///     logger.raw_log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message 1"));
 ///     logger.enable(true);
 ///
 ///     logger.flush();
-///     let l = logger.read_log().unwrap(); // Capture the last log message.
+///     let l = queue.pop().unwrap(); // Capture the last log message.
 ///     // We can't test for equality because log messages contains a timestamp...
-///     assert!(l.msg().ends_with("Example message"));
-///     let l = logger.read_log().unwrap();
-///     assert!(l.msg().ends_with("Example message 1"));
-///     logger.enable_log_buffer(false);
+///     assert_eq!(l.msg(), "Example message");
+///     let l = queue.pop().unwrap();
+///     assert_eq!(l.msg(), "Example message 1");
 ///     //... application code without log redirect pump.
 /// }
 /// ```

@@ -28,10 +28,8 @@
 
 use crate::{LogMsg, Builder};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use crossbeam_queue::ArrayQueue;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
 use crate::handler::{Flag, Handler};
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
@@ -43,32 +41,25 @@ const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 enum Command {
     Flush,
     Log(LogMsg),
-    Terminate,
-    EnableLogBuffer,
-    DisableLogBuffer,
+    Terminate
 }
 
 struct Thread {
     handlers: Vec<Box<dyn Handler>>,
     recv_ch: Receiver<Command>,
-    enable_stdout: Flag,
-    enable_log_buffer: bool,
-    log_buffer: Arc<ArrayQueue<LogMsg>>,
+    enable_stdout: Flag
 }
 
 impl Thread {
     pub fn new(
         builder: Builder,
         recv_ch: Receiver<Command>,
-        log_buffer: Arc<ArrayQueue<LogMsg>>,
         enable_stdout: Flag
     ) -> Thread {
         Thread {
             handlers: builder.handlers,
             recv_ch,
-            enable_stdout,
-            enable_log_buffer: false,
-            log_buffer,
+            enable_stdout
         }
     }
 
@@ -85,14 +76,6 @@ impl Thread {
                 for v in &mut self.handlers {
                     v.write(&buffer);
                 }
-                false
-            }
-            Command::EnableLogBuffer => {
-                self.enable_log_buffer = true;
-                false
-            }
-            Command::DisableLogBuffer => {
-                self.enable_log_buffer = false;
                 false
             }
         }
@@ -117,7 +100,6 @@ pub struct Logger {
     send_ch: Sender<Command>,
     enabled: AtomicBool,
     enable_stdout: Flag,
-    log_buffer: Arc<ArrayQueue<LogMsg>>,
     thread: ManuallyDrop<std::thread::JoinHandle<()>>,
 }
 
@@ -128,19 +110,16 @@ impl Logger {
     pub(crate) fn new(builder: Builder) -> Logger {
         let buf_size = builder.buf_size.unwrap_or(BUF_SIZE);
         let (send_ch, recv_ch) = bounded(buf_size);
-        let log_buffer = Arc::new(ArrayQueue::new(buf_size));
         let recv_ch1 = recv_ch.clone();
-        let log_buffer1 = log_buffer.clone();
         let enable_stdout = Flag::new(true);
         let enable_stdout1 = enable_stdout.clone();
         let thread = std::thread::spawn(move || {
-            let thread = Thread::new(builder, recv_ch1, log_buffer1, enable_stdout1);
+            let thread = Thread::new(builder, recv_ch1, enable_stdout1);
             thread.run();
         });
         Logger {
             thread: ManuallyDrop::new(thread),
             send_ch,
-            log_buffer,
             enabled: AtomicBool::new(true),
             enable_stdout
         }
@@ -158,34 +137,6 @@ impl Logger {
     /// Enables this logger.
     pub fn enable(&self, flag: bool) {
         self.enabled.store(flag, Ordering::Release);
-    }
-
-    /// Enables the log redirect pump.
-    pub fn enable_log_buffer(&self, flag: bool) {
-        unsafe {
-            if flag {
-                self.send_ch
-                    .send(Command::EnableLogBuffer)
-                    .unwrap_unchecked();
-            } else {
-                self.send_ch
-                    .send(Command::DisableLogBuffer)
-                    .unwrap_unchecked();
-                self.clear_log_buffer();
-            }
-        }
-    }
-
-    /// Clears the log buffer.
-    #[inline]
-    pub fn clear_log_buffer(&self) {
-        while self.log_buffer.pop().is_some() {} //Clear the entire log buffer.
-    }
-
-    /// Attempts to extract one log message from the buffer.
-    #[inline]
-    pub fn read_log(&self) -> Option<LogMsg> {
-        self.log_buffer.pop()
     }
 
     /// Low-level log function. This injects log messages directly into the logging thread channel.
@@ -244,9 +195,6 @@ impl Drop for Logger {
     fn drop(&mut self) {
         // Disable this Logger.
         self.enable(false);
-
-        // Disable the log buffer (this automatically clears it).
-        self.enable_log_buffer(false);
 
         // Send termination command and join with logging thread.
         // This cannot panic as send_ch is owned by LoggerImpl which is intended
