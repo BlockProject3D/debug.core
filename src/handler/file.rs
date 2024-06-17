@@ -60,7 +60,7 @@ impl FileHandler {
         &mut self,
         target: &str,
     ) -> Result<&mut BufWriter<File>, std::io::Error> {
-        if self.targets.contains_key(target) {
+        if !self.targets.contains_key(target) {
             let f = OpenOptions::new()
                 .append(true)
                 .create(true)
