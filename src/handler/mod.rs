@@ -28,20 +28,19 @@
 
 //! The log handler system, with default provided handlers.
 
-mod stdout;
 mod file;
 mod log_queue;
+mod stdout;
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use crate::LogMsg;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// A dynamic atomic flag.
 #[derive(Clone)]
 pub struct Flag(Arc<AtomicBool>);
 
 impl Flag {
-
     /// Creates a new flag.
     ///
     /// # Arguments
@@ -85,5 +84,5 @@ pub trait Handler: Send {
 }
 
 pub use file::FileHandler;
+pub use log_queue::{LogQueue, LogQueueHandler};
 pub use stdout::StdHandler;
-pub use log_queue::{LogQueueHandler, LogQueue};

@@ -33,22 +33,22 @@
 
 //! An async flexible logger framework designed for BP3D software.
 
+mod builder;
 mod easy_termcolor;
+pub mod handler;
 mod internal;
+mod level;
 mod log_msg;
 pub mod util;
-mod builder;
-mod level;
-pub mod handler;
 
 use bp3d_os::dirs::App;
 use crossbeam_channel::Receiver;
 use std::path::PathBuf;
 
-pub use log_msg::{LogMsg, Location};
 pub use builder::*;
 pub use internal::Logger;
 pub use level::{Level, LevelFilter};
+pub use log_msg::{Location, LogMsg};
 
 /// The log buffer type.
 pub type LogBuffer = Receiver<LogMsg>;
@@ -86,8 +86,7 @@ impl<'a> GetLogs for &'a str {
 pub struct Guard;
 
 impl Drop for Guard {
-    fn drop(&mut self) {
-    }
+    fn drop(&mut self) {}
 }
 
 /// Runs a closure in scope of a logger configuration, then free the given logger configuration

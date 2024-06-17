@@ -28,8 +28,8 @@
 
 //! Logging utilities.
 
-use std::fmt::Write;
 use bp3d_util::format::IoToFmt;
+use std::fmt::Write;
 use time::macros::format_description;
 use time::OffsetDateTime;
 
@@ -67,11 +67,11 @@ pub fn write_time(msg: &mut impl Write, time: OffsetDateTime) {
 }
 
 #[cfg(test)]
-mod tests  {
+mod tests {
+    use crate::util::write_time;
+    use crate::{Level, Location, LogMsg};
     use bp3d_os::time::LocalOffsetDateTime;
     use time::OffsetDateTime;
-    use crate::{Level, Location, LogMsg};
-    use crate::util::write_time;
 
     #[test]
     fn fhsdiub() {

@@ -26,9 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use crate::Level;
 use std::fmt::Display;
 use termcolor::{Color, ColorSpec};
-use crate::Level;
 
 pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
 

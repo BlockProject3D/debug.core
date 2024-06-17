@@ -26,10 +26,10 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::sync::Arc;
-use crossbeam_queue::ArrayQueue;
 use crate::handler::{Flag, Handler};
 use crate::LogMsg;
+use crossbeam_queue::ArrayQueue;
+use std::sync::Arc;
 
 const DEFAULT_BUF_SIZE: usize = 32;
 
@@ -73,7 +73,7 @@ impl LogQueue {
 
 /// A basic handler which redirects log messages to a queue.
 pub struct LogQueueHandler {
-    queue: LogQueue
+    queue: LogQueue,
 }
 
 impl LogQueueHandler {
@@ -85,20 +85,16 @@ impl LogQueueHandler {
     ///
     /// returns: LogQueueHandler
     pub fn new(queue: LogQueue) -> Self {
-        Self {
-            queue
-        }
+        Self { queue }
     }
 }
 
 impl Handler for LogQueueHandler {
-    fn install(&mut self, _: &Flag) {
-    }
+    fn install(&mut self, _: &Flag) {}
 
     fn write(&mut self, msg: &LogMsg) {
         self.queue.0.force_push(msg.clone());
     }
 
-    fn flush(&mut self) {
-    }
+    fn flush(&mut self) {}
 }

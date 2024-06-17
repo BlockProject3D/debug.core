@@ -26,14 +26,14 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use crate::handler::{Flag, Handler};
+use crate::LogMsg;
+use bp3d_util::format::{FixedBufStr, IoToFmt};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use bp3d_util::format::{FixedBufStr, IoToFmt};
 use time::format_description::well_known::Iso8601;
-use crate::handler::{Flag, Handler};
-use crate::LogMsg;
 
 /// A file handler which writes log messages into different files each named by the target name.
 pub struct FileHandler {
@@ -75,8 +75,7 @@ impl FileHandler {
 }
 
 impl Handler for FileHandler {
-    fn install(&mut self, _: &Flag) {
-    }
+    fn install(&mut self, _: &Flag) {}
 
     fn write(&mut self, msg: &LogMsg) {
         let (target, module) = msg.location().get_target_module();
@@ -84,7 +83,14 @@ impl Handler for FileHandler {
         let _ = msg.time().format_into(&mut wrapper, &Iso8601::DEFAULT);
         let time_str = wrapper.into_inner();
         if let Ok(file) = self.get_create_open_file(target) {
-            let _ = writeln!(file, "[{}] ({}) {}: {}", msg.level(), time_str.str(), module, msg.msg());
+            let _ = writeln!(
+                file,
+                "[{}] ({}) {}: {}",
+                msg.level(),
+                time_str.str(),
+                module,
+                msg.msg()
+            );
         }
     }
 

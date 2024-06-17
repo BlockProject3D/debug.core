@@ -26,10 +26,10 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::GetLogs;
 use crate::handler::{FileHandler, Handler, StdHandler};
 use crate::internal::Logger;
 use crate::level::LevelFilter;
+use crate::GetLogs;
 
 /// Enum of the different color settings when printing to stdout/stderr.
 #[derive(Debug, Copy, Clone)]
@@ -94,7 +94,7 @@ pub struct Builder {
     pub(crate) smart_stderr: bool,
     pub(crate) buf_size: Option<usize>,
     pub(crate) handlers: Vec<Box<dyn Handler>>,
-    pub(crate) filter: LevelFilter
+    pub(crate) filter: LevelFilter,
 }
 
 impl Default for Builder {
@@ -104,7 +104,7 @@ impl Default for Builder {
             smart_stderr: true,
             buf_size: None,
             handlers: Vec::new(),
-            filter: LevelFilter::Info
+            filter: LevelFilter::Info,
         }
     }
 }
