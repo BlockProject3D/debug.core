@@ -1,4 +1,4 @@
-// Copyright (c) 2023, BlockProject 3D
+// Copyright (c) 2024, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -26,38 +26,65 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use log::Level;
+use crate::util::extract_target_module;
+use crate::Level;
 use std::fmt::{Error, Write};
 use std::mem::MaybeUninit;
+use time::OffsetDateTime;
 
-// Limit the size of the target string to 16 bytes.
-const LOG_TARGET_SIZE: usize = 16;
 // Size of the control fields of the log message structure:
-// sizeof msg_len + 1 byte for target_len + 1 byte for level
-const LOG_CONTROL_SIZE: usize = std::mem::size_of::<u32>() + 2;
+// 40 bytes of Location structure (&'static str is 16 bytes) + 16 bytes of OffsetDateTime + 4 bytes of msg len + 1 byte of Level + 3 bytes of padding
+const LOG_CONTROL_SIZE: usize = 40 + 16 + 4 + 1 + 3;
 // Limit the size of the log message string so that the size of the log structure is LOG_BUFFER_SIZE
-const LOG_MSG_SIZE: usize = LOG_BUFFER_SIZE - LOG_TARGET_SIZE - LOG_CONTROL_SIZE;
+const LOG_MSG_SIZE: usize = LOG_BUFFER_SIZE - LOG_CONTROL_SIZE;
 const LOG_BUFFER_SIZE: usize = 1024;
 
-#[inline]
-fn log_to_u8(level: Level) -> u8 {
-    match level {
-        Level::Error => 0,
-        Level::Warn => 1,
-        Level::Info => 2,
-        Level::Debug => 3,
-        Level::Trace => 4,
-    }
+/// The context of a log message.
+#[derive(Clone, Copy)]
+pub struct Location {
+    module_path: &'static str,
+    file: &'static str,
+    line: u32,
 }
 
-#[inline]
-fn u8_to_log(l: u8) -> Level {
-    match l {
-        0 => Level::Error,
-        1 => Level::Warn,
-        3 => Level::Debug,
-        4 => Level::Trace,
-        _ => Level::Info,
+impl Location {
+    /// Creates a new instance of a log message location.
+    ///
+    /// This function is const to let the caller store location structures in statics.
+    ///
+    /// # Arguments
+    ///
+    /// * `module_path`: the module path obtained from the [module_path](module_path) macro.
+    /// * `file`: the source file obtained from the [file](file) macro.
+    /// * `line`: the line number in the source file obtained from the [line](line) macro.
+    ///
+    /// returns: Metadata
+    pub const fn new(module_path: &'static str, file: &'static str, line: u32) -> Self {
+        Self {
+            module_path,
+            file,
+            line,
+        }
+    }
+
+    /// The module path which issued this log message.
+    pub fn module_path(&self) -> &'static str {
+        self.module_path
+    }
+
+    /// The source file which issued this log message.
+    pub fn file(&self) -> &'static str {
+        self.file
+    }
+
+    /// The line in the source file which issued this log message.
+    pub fn line(&self) -> u32 {
+        self.line
+    }
+
+    /// Extracts the target name and the module name from the module path.
+    pub fn get_target_module(&self) -> (&'static str, &'static str) {
+        extract_target_module(self.module_path)
     }
 }
 
@@ -72,20 +99,20 @@ fn u8_to_log(l: u8) -> Level {
 /// # Examples
 ///
 /// ```
-/// use log::Level;
-/// use bp3d_logger::LogMsg;
+/// use bp3d_logger::{Level, Location, LogMsg};
 /// use std::fmt::Write;
-/// let mut msg = LogMsg::new("test", Level::Info);
+/// let mut msg = LogMsg::new(Location::new("test", "file.c", 1), Level::Info);
 /// let _ = write!(msg, "This is a formatted message {}", 42);
 /// assert_eq!(msg.msg(), "This is a formatted message 42");
 /// ```
 #[derive(Clone)]
 #[repr(C)]
 pub struct LogMsg {
+    location: Location,
+    time: OffsetDateTime,
     msg_len: u32,
-    level: u8,
-    target_len: u8,
-    buffer: [MaybeUninit<u8>; LOG_MSG_SIZE + LOG_TARGET_SIZE],
+    level: Level,
+    buffer: [MaybeUninit<u8>; LOG_MSG_SIZE],
 }
 
 impl LogMsg {
@@ -93,7 +120,7 @@ impl LogMsg {
     ///
     /// # Arguments
     ///
-    /// * `target`: the target name this log comes from.
+    /// * `location`: the location this message comes from.
     /// * `level`: the [Level](Level) of the log message.
     ///
     /// returns: LogMsg
@@ -101,28 +128,41 @@ impl LogMsg {
     /// # Examples
     ///
     /// ```
-    /// use log::Level;
-    /// use bp3d_logger::LogMsg;
-    /// let msg = LogMsg::new("test", Level::Info);
-    /// assert_eq!(msg.target(), "test");
+    /// use bp3d_logger::{Level, Location, LogMsg};
+    /// let msg = LogMsg::new(Location::new("test", "file.c", 1), Level::Info);
+    /// assert_eq!(msg.location().module_path(), "test");
     /// assert_eq!(msg.level(), Level::Info);
     /// ```
-    pub fn new(target: &str, level: Level) -> LogMsg {
-        let len = std::cmp::min(LOG_TARGET_SIZE, target.as_bytes().len());
-        let mut buffer = LogMsg {
+    pub fn new(location: Location, level: Level) -> LogMsg {
+        LogMsg::with_time(location, OffsetDateTime::now_utc(), level)
+    }
+
+    /// Creates a new instance of log message buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `location`: the location this message comes from.
+    /// * `level`: the [Level](Level) of the log message.
+    ///
+    /// returns: LogMsg
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use time::macros::datetime;
+    /// use bp3d_logger::{Level, Location, LogMsg};
+    /// let msg = LogMsg::with_time(Location::new("test", "file.c", 1), datetime!(1999-1-1 0:0 UTC), Level::Info);
+    /// assert_eq!(msg.location().module_path(), "test");
+    /// assert_eq!(msg.level(), Level::Info);
+    /// ```
+    pub fn with_time(location: Location, time: OffsetDateTime, level: Level) -> LogMsg {
+        LogMsg {
+            location,
+            time,
             buffer: unsafe { MaybeUninit::uninit().assume_init() },
-            target_len: len as _,
-            msg_len: len as _,
-            level: log_to_u8(level),
-        };
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                target.as_bytes().as_ptr(),
-                std::mem::transmute(buffer.buffer.as_mut_ptr()),
-                len,
-            );
+            msg_len: 0,
+            level,
         }
-        buffer
     }
 
     /// Clears the log message but keep the target and the level.
@@ -130,17 +170,27 @@ impl LogMsg {
     /// # Examples
     ///
     /// ```
-    /// use log::Level;
-    /// use bp3d_logger::LogMsg;
-    /// let mut msg = LogMsg::from_msg("test", Level::Info, "this is a test");
+    /// use bp3d_logger::{Level, Location, LogMsg};
+    /// let mut msg = LogMsg::from_msg(Location::new("test", "file.c", 1), Level::Info, "this is a test");
     /// msg.clear();
     /// assert_eq!(msg.msg(), "");
-    /// assert_eq!(msg.target(), "test");
+    /// assert_eq!(msg.location().module_path(), "test");
     /// assert_eq!(msg.level(), Level::Info);
     /// ```
     #[inline]
     pub fn clear(&mut self) {
-        self.msg_len = self.target_len as _;
+        self.msg_len = 0;
+    }
+
+    /// Replaces the time contained in this log message.
+    ///
+    /// # Arguments
+    ///
+    /// * `time`: the new [OffsetDateTime](OffsetDateTime).
+    ///
+    /// returns: ()
+    pub fn set_time(&mut self, time: OffsetDateTime) {
+        self.time = time;
     }
 
     /// Auto-creates a new log message with a pre-defined string message.
@@ -158,15 +208,14 @@ impl LogMsg {
     /// # Examples
     ///
     /// ```
-    /// use log::Level;
-    /// use bp3d_logger::LogMsg;
-    /// let mut msg = LogMsg::from_msg("test", Level::Info, "this is a test");
-    /// assert_eq!(msg.target(), "test");
+    /// use bp3d_logger::{LogMsg, Level, Location};
+    /// let mut msg = LogMsg::from_msg(Location::new("test", "file.c", 1), Level::Info, "this is a test");
+    /// assert_eq!(msg.location().module_path(), "test");
     /// assert_eq!(msg.level(), Level::Info);
     /// assert_eq!(msg.msg(), "this is a test");
     /// ```
-    pub fn from_msg(target: &str, level: Level, msg: &str) -> LogMsg {
-        let mut ads = Self::new(target, level);
+    pub fn from_msg(location: Location, level: Level, msg: &str) -> LogMsg {
+        let mut ads = Self::new(location, level);
         unsafe { ads.write(msg.as_bytes()) };
         ads
     }
@@ -187,6 +236,7 @@ impl LogMsg {
     /// bytes.
     /// * If buf contains invalid UTF-8 bytes, further operations on the log message buffer may
     /// result in UB.
+    #[allow(clippy::missing_transmute_annotations)]
     pub unsafe fn write(&mut self, buf: &[u8]) -> usize {
         let len = std::cmp::min(buf.len(), LOG_MSG_SIZE - self.msg_len as usize);
         if len > 0 {
@@ -200,30 +250,32 @@ impl LogMsg {
         len
     }
 
-    /// Returns the target name this log comes from.
+    /// Returns the location the log message comes from.
     #[inline]
-    pub fn target(&self) -> &str {
-        // SAFEY: This is always safe because BufLogMsg is always UTF-8.
-        unsafe {
-            std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[..self.target_len as _]))
-        }
+    pub fn location(&self) -> &Location {
+        &self.location
+    }
+
+    /// Returns the time of this log message.
+    #[inline]
+    pub fn time(&self) -> &OffsetDateTime {
+        &self.time
     }
 
     /// Returns the log message as a string.
     #[inline]
+    #[allow(clippy::missing_transmute_annotations)]
     pub fn msg(&self) -> &str {
-        // SAFEY: This is always safe because BufLogMsg is always UTF-8.
+        // SAFETY: This is always safe because LogMsg is always UTF-8.
         unsafe {
-            std::str::from_utf8_unchecked(std::mem::transmute(
-                &self.buffer[self.target_len as _..self.msg_len as _],
-            ))
+            std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[..self.msg_len as _]))
         }
     }
 
     /// Returns the level of this log message.
     #[inline]
     pub fn level(&self) -> Level {
-        u8_to_log(self.level)
+        self.level
     }
 }
 

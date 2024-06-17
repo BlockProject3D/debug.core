@@ -26,55 +26,63 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::Level;
-use std::fmt::Display;
-use termcolor::{Color, ColorSpec};
+//! The log handler system, with default provided handlers.
 
-pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
+mod file;
+mod log_queue;
+mod stdout;
 
-impl<T: termcolor::WriteColor> EasyTermColor<T> {
-    pub fn write(mut self, elem: impl Display) -> Self {
-        let _ = write!(&mut self.0, "{}", elem);
-        self
+use crate::LogMsg;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
+/// A dynamic atomic flag.
+#[derive(Clone)]
+pub struct Flag(Arc<AtomicBool>);
+
+impl Flag {
+    /// Creates a new flag.
+    ///
+    /// # Arguments
+    ///
+    /// * `initial`: the initial value of this flag.
+    ///
+    /// returns: Flag
+    pub fn new(initial: bool) -> Self {
+        Self(Arc::new(AtomicBool::new(initial)))
     }
 
-    pub fn color(mut self, elem: ColorSpec) -> Self {
-        let _ = self.0.set_color(&elem);
-        self
+    /// Returns true if this flag is ON, false otherwise.
+    pub fn is_enabled(&self) -> bool {
+        self.0.load(Ordering::Acquire)
     }
 
-    pub fn reset(mut self) -> Self {
-        let _ = self.0.reset();
-        self
-    }
-
-    pub fn lf(mut self) -> Self {
-        let _ = writeln!(&mut self.0);
-        self
-    }
-}
-
-pub fn color(level: Level) -> ColorSpec {
-    match level {
-        Level::Error => ColorSpec::new()
-            .set_fg(Some(Color::Red))
-            .set_bold(true)
-            .clone(),
-        Level::Warn => ColorSpec::new()
-            .set_fg(Some(Color::Yellow))
-            .set_bold(true)
-            .clone(),
-        Level::Info => ColorSpec::new()
-            .set_fg(Some(Color::Green))
-            .set_bold(true)
-            .clone(),
-        Level::Debug => ColorSpec::new()
-            .set_fg(Some(Color::Blue))
-            .set_bold(true)
-            .clone(),
-        Level::Trace => ColorSpec::new()
-            .set_fg(Some(Color::Cyan))
-            .set_bold(true)
-            .clone(),
+    /// Sets this flag.
+    pub fn set(&self, flag: bool) {
+        self.0.store(flag, Ordering::Release);
     }
 }
+
+/// The main handler trait.
+pub trait Handler: Send {
+    /// Called when the handler is installed in the async logging thread.
+    ///
+    /// # Arguments
+    ///
+    /// * `enable_stdout`: boolean flag to know if printing to stdout is allowed.
+    fn install(&mut self, enable_stdout: &Flag);
+
+    /// Called when a message is being written.
+    ///
+    /// # Arguments
+    ///
+    /// * `msg`: the log message which was emitted as a [LogMsg](LogMsg).
+    fn write(&mut self, msg: &LogMsg);
+
+    /// Called when the flush command is received in the async logging thread.
+    fn flush(&mut self);
+}
+
+pub use file::FileHandler;
+pub use log_queue::{LogQueue, LogQueueHandler};
+pub use stdout::StdHandler;

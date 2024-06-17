@@ -16,7 +16,7 @@ jobs:
       ispre: ${{ steps.version.outputs.ispre }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Get Version
         id: version
         uses: bp3d-actions/cargo-version@main
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Setup cargo

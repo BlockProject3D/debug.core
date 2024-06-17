@@ -1,4 +1,4 @@
-// Copyright (c) 2023, BlockProject 3D
+// Copyright (c) 2024, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -26,17 +26,12 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::backend::Backend;
-use crate::{LogMsg, Logger};
-use bp3d_os::time::LocalOffsetDateTime;
+use crate::handler::{Flag, Handler};
+use crate::level::LevelFilter;
+use crate::{Builder, LogMsg};
 use crossbeam_channel::{bounded, Receiver, Sender};
-use crossbeam_queue::ArrayQueue;
-use log::{Level, Log, Metadata, Record};
-use std::fmt::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
-use time::macros::format_description;
-use time::OffsetDateTime;
+use std::mem::ManuallyDrop;
+use std::sync::atomic::{AtomicU8, Ordering};
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -48,41 +43,24 @@ enum Command {
     Flush,
     Log(LogMsg),
     Terminate,
-    EnableLogBuffer,
-    DisableLogBuffer,
-}
-
-fn log<T: Backend>(
-    backend: Option<&mut T>,
-    target: &str,
-    msg: &str,
-    level: Level,
-) -> Result<(), T::Error> {
-    if let Some(back) = backend {
-        back.write(target, msg, level)
-    } else {
-        Ok(())
-    }
 }
 
 struct Thread {
-    logger: Logger,
+    handlers: Vec<Box<dyn Handler>>,
     recv_ch: Receiver<Command>,
-    enable_log_buffer: bool,
-    log_buffer: Arc<ArrayQueue<LogMsg>>,
+    enable_stdout: Flag,
 }
 
 impl Thread {
     pub fn new(
-        logger: Logger,
+        handlers: Vec<Box<dyn Handler>>,
         recv_ch: Receiver<Command>,
-        log_buffer: Arc<ArrayQueue<LogMsg>>,
+        enable_stdout: Flag,
     ) -> Thread {
         Thread {
-            logger,
+            handlers,
             recv_ch,
-            enable_log_buffer: false,
-            log_buffer,
+            enable_stdout,
         }
     }
 
@@ -90,48 +68,24 @@ impl Thread {
         match cmd {
             Command::Terminate => true,
             Command::Flush => {
-                if let Some(file) = &mut self.logger.file {
-                    if let Err(e) = file.flush() {
-                        let _ = log(
-                            self.logger.std.as_mut(),
-                            "bp3d-logger",
-                            &format!("Could not flush file backend: {}", e),
-                            Level::Error,
-                        );
-                    }
+                for v in &mut self.handlers {
+                    v.flush();
                 }
                 false
             }
             Command::Log(buffer) => {
-                let target = buffer.target();
-                let msg = buffer.msg();
-                let level = buffer.level();
-                if let Err(e) = log(self.logger.file.as_mut(), target, msg, level) {
-                    let _ = log(
-                        self.logger.std.as_mut(),
-                        "bp3d-logger",
-                        &format!("Could not write to file backend: {}", e),
-                        Level::Error,
-                    );
+                for v in &mut self.handlers {
+                    v.write(&buffer);
                 }
-                let _ = log(self.logger.std.as_mut(), target, msg, level);
-                if self.enable_log_buffer {
-                    self.log_buffer.force_push(buffer);
-                }
-                false
-            }
-            Command::EnableLogBuffer => {
-                self.enable_log_buffer = true;
-                false
-            }
-            Command::DisableLogBuffer => {
-                self.enable_log_buffer = false;
                 false
             }
         }
     }
 
     pub fn run(mut self) {
+        for v in &mut self.handlers {
+            v.install(&self.enable_stdout);
+        }
         while let Ok(v) = self.recv_ch.recv() {
             let flag = self.exec_commad(v);
             if flag {
@@ -142,108 +96,54 @@ impl Thread {
     }
 }
 
-pub struct LoggerImpl {
+/// The main Logger type allows to control the entire logger state and submit messages for logging.
+pub struct Logger {
     send_ch: Sender<Command>,
-    enabled: AtomicBool,
-    recv_ch: Receiver<Command>,
-    log_buffer: Arc<ArrayQueue<LogMsg>>,
-    thread: Mutex<Option<std::thread::JoinHandle<()>>>,
+    level: AtomicU8,
+    enable_stdout: Flag,
+    thread: ManuallyDrop<std::thread::JoinHandle<()>>,
 }
 
-impl LoggerImpl {
-    pub fn new() -> LoggerImpl {
-        let (send_ch, recv_ch) = bounded(BUF_SIZE);
-        LoggerImpl {
-            thread: Mutex::new(None),
+impl Logger {
+    pub(crate) fn new(builder: Builder) -> Logger {
+        let buf_size = builder.buf_size.unwrap_or(BUF_SIZE);
+        let (send_ch, recv_ch) = bounded(buf_size);
+        let recv_ch1 = recv_ch.clone();
+        let enable_stdout = Flag::new(true);
+        let enable_stdout1 = enable_stdout.clone();
+        let thread = std::thread::spawn(move || {
+            let thread = Thread::new(builder.handlers, recv_ch1, enable_stdout1);
+            thread.run();
+        });
+        Logger {
+            thread: ManuallyDrop::new(thread),
             send_ch,
-            recv_ch,
-            log_buffer: Arc::new(ArrayQueue::new(BUF_SIZE)),
-            enabled: AtomicBool::new(false),
+            level: AtomicU8::new(builder.filter as u8),
+            enable_stdout,
         }
     }
 
-    pub fn enable(&self, flag: bool) {
-        self.enabled.store(flag, Ordering::Release);
+    /// Enables the stdout/stderr logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `flag`: true to enable stdout, false to disable stdout.
+    pub fn enable_stdout(&self, flag: bool) {
+        self.enable_stdout.set(flag);
     }
 
-    pub fn enable_log_buffer(&self, flag: bool) {
-        unsafe {
-            if flag {
-                self.send_ch
-                    .send(Command::EnableLogBuffer)
-                    .unwrap_unchecked();
-            } else {
-                self.send_ch
-                    .send(Command::DisableLogBuffer)
-                    .unwrap_unchecked();
-            }
-        }
-    }
-
+    /// Low-level log function. This injects log messages directly into the logging thread channel.
+    ///
+    /// This function applies basic formatting depending on the backend:
+    /// - For stdout/stderr backend the format is \<target\> \[level\] msg.
+    /// - For file backend the format is \[level\] msg and the message is recorded in the file
+    /// corresponding to the log target.
+    ///
+    /// WARNING: For optimization reasons, this function does not check and thus does neither honor
+    /// the enabled flag nor the current log level. For a checked log function,
+    /// use [checked_log](Self::log).
     #[inline]
-    pub fn clear_log_buffer(&self) {
-        while self.log_buffer.pop().is_some() {} //Clear the entire log buffer.
-    }
-
-    #[inline]
-    pub fn read_log(&self) -> Option<LogMsg> {
-        self.log_buffer.pop()
-    }
-
-    pub fn terminate(&self) {
-        // This should never panic as there's no way another call would have panicked!
-        let mut thread = self.thread.lock().unwrap();
-        if let Some(handle) = thread.take() {
-            // This cannot panic as send_ch is owned by LoggerImpl which is intended
-            // to be statically allocated.
-            unsafe {
-                self.send_ch.send(Command::Flush).unwrap_unchecked();
-                self.send_ch.send(Command::Terminate).unwrap_unchecked();
-            }
-            // Join the logging thread; this will lock until the thread is completely terminated.
-            handle.join().unwrap();
-        }
-    }
-
-    pub fn start_new_thread(&self, logger: Logger) {
-        let mut flag = false;
-        {
-            // This should never panic as there's no way another call would have panicked!
-            let mut thread = self.thread.lock().unwrap();
-            if let Some(handle) = thread.take() {
-                // This cannot panic as send_ch is owned by LoggerImpl which is intended
-                // to be statically allocated.
-                unsafe {
-                    self.send_ch.send(Command::Terminate).unwrap_unchecked();
-                }
-                if handle.join().is_err() {
-                    flag = true;
-                }
-            }
-            let recv_ch = self.recv_ch.clone();
-            let log_buffer = self.log_buffer.clone();
-            *thread = Some(std::thread::spawn(move || {
-                let thread = Thread::new(logger, recv_ch, log_buffer);
-                thread.run();
-            }));
-        }
-        if flag {
-            // Somehow the previous thread has panicked; log that panic...
-            unsafe {
-                // This cannot panic as send_ch is owned by LoggerImpl which is intended
-                // to be statically allocated.
-                self.send_ch
-                    .send(Command::Log(LogMsg::from_msg(
-                        "bp3d-logger",
-                        Level::Error,
-                        "The logging thread has panicked!",
-                    )))
-                    .unwrap_unchecked();
-            }
-        }
-    }
-
-    pub fn low_level_log(&self, msg: &LogMsg) {
+    pub fn raw_log(&self, msg: &LogMsg) {
         unsafe {
             // This cannot panic as send_ch is owned by LoggerImpl which is intended
             // to be statically allocated.
@@ -253,51 +153,39 @@ impl LoggerImpl {
         }
     }
 
+    /// Main log function. This injects log messages into the logging thread channel only if
+    /// this logger is enabled.
+    ///
+    /// This function calls the [raw_log](Self::raw_log) function only when this logger is enabled.
+    #[inline]
+    pub fn log(&self, msg: &LogMsg) {
+        if self.filter() >= msg.level().as_level_filter() {
+            self.raw_log(msg);
+        }
+    }
+
+    /// Returns the filter level of this logger instance.
+    pub fn filter(&self) -> LevelFilter {
+        unsafe { LevelFilter::from_u8(self.level.load(Ordering::Acquire)).unwrap_unchecked() }
+    }
+
+    /// Sets the new level filter for this logger.
+    ///
+    /// # Arguments
+    ///
+    /// * `filter`: the new [LevelFilter](LevelFilter).
+    pub fn set_filter(&self, filter: LevelFilter) {
+        self.level.store(filter as u8, Ordering::Release);
+    }
+
+    /// Returns true if the logger is currently enabled and is capturing log messages.
     #[inline]
     pub fn is_enabled(&self) -> bool {
-        self.enabled.load(Ordering::Acquire)
-    }
-}
-
-fn extract_target_module<'a>(record: &'a Record) -> (&'a str, Option<&'a str>) {
-    let base_string = record.module_path().unwrap_or_else(|| record.target());
-    let target = base_string
-        .find("::")
-        .map(|v| &base_string[..v])
-        .unwrap_or(base_string);
-    let module = base_string.find("::").map(|v| &base_string[(v + 2)..]);
-    (target, module)
-}
-
-impl Log for LoggerImpl {
-    fn enabled(&self, _: &Metadata) -> bool {
-        self.is_enabled()
+        self.filter() > LevelFilter::None
     }
 
-    fn log(&self, record: &Record) {
-        // Apparently the log crate is defective: the enabled function is ignored...
-        if !self.enabled(record.metadata()) {
-            return;
-        }
-        let (target, module) = extract_target_module(record);
-        let time = OffsetDateTime::now_local();
-        let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
-        let formatted = time
-            .unwrap_or_else(OffsetDateTime::now_utc)
-            .format(format)
-            .unwrap_or_default();
-        let mut msg = LogMsg::new(target, record.level());
-        let _ = write!(
-            msg,
-            "({}) {}: {}",
-            formatted,
-            module.unwrap_or("main"),
-            record.args()
-        );
-        self.low_level_log(&msg);
-    }
-
-    fn flush(&self) {
+    /// Flushes all pending messages.
+    pub fn flush(&self) {
         if !self.is_enabled() {
             return;
         }
@@ -307,5 +195,37 @@ impl Log for LoggerImpl {
             self.send_ch.send(Command::Flush).unwrap_unchecked();
             while !self.send_ch.is_empty() {}
         }
+    }
+}
+
+impl Drop for Logger {
+    fn drop(&mut self) {
+        // Disable this Logger.
+        self.set_filter(LevelFilter::None);
+
+        // Send termination command and join with logging thread.
+        // This cannot panic as send_ch is owned by LoggerImpl which is intended
+        // to be statically allocated.
+        unsafe {
+            self.send_ch.send(Command::Flush).unwrap_unchecked();
+            self.send_ch.send(Command::Terminate).unwrap_unchecked();
+        }
+
+        // Join the logging thread; this will lock until the thread is completely terminated.
+        let thread = unsafe { ManuallyDrop::into_inner(std::ptr::read(&self.thread)) };
+        thread.join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Builder;
+
+    fn ensure_send_sync<T: Send + Sync>(_: T) {}
+
+    #[test]
+    fn basic_test() {
+        let logger = Builder::new().start();
+        ensure_send_sync(logger);
     }
 }

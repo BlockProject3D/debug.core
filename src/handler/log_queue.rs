@@ -26,55 +26,75 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::Level;
-use std::fmt::Display;
-use termcolor::{Color, ColorSpec};
+use crate::handler::{Flag, Handler};
+use crate::LogMsg;
+use crossbeam_queue::ArrayQueue;
+use std::sync::Arc;
 
-pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
+const DEFAULT_BUF_SIZE: usize = 32;
 
-impl<T: termcolor::WriteColor> EasyTermColor<T> {
-    pub fn write(mut self, elem: impl Display) -> Self {
-        let _ = write!(&mut self.0, "{}", elem);
-        self
-    }
+/// A log queue.
+///
+/// The default size of the log queue is 32 log messages, that is 32 * 1024 = 32768 bytes.
+#[derive(Clone)]
+pub struct LogQueue(Arc<ArrayQueue<LogMsg>>);
 
-    pub fn color(mut self, elem: ColorSpec) -> Self {
-        let _ = self.0.set_color(&elem);
-        self
-    }
-
-    pub fn reset(mut self) -> Self {
-        let _ = self.0.reset();
-        self
-    }
-
-    pub fn lf(mut self) -> Self {
-        let _ = writeln!(&mut self.0);
-        self
+impl Default for LogQueue {
+    fn default() -> Self {
+        Self::new(DEFAULT_BUF_SIZE)
     }
 }
 
-pub fn color(level: Level) -> ColorSpec {
-    match level {
-        Level::Error => ColorSpec::new()
-            .set_fg(Some(Color::Red))
-            .set_bold(true)
-            .clone(),
-        Level::Warn => ColorSpec::new()
-            .set_fg(Some(Color::Yellow))
-            .set_bold(true)
-            .clone(),
-        Level::Info => ColorSpec::new()
-            .set_fg(Some(Color::Green))
-            .set_bold(true)
-            .clone(),
-        Level::Debug => ColorSpec::new()
-            .set_fg(Some(Color::Blue))
-            .set_bold(true)
-            .clone(),
-        Level::Trace => ColorSpec::new()
-            .set_fg(Some(Color::Cyan))
-            .set_bold(true)
-            .clone(),
+impl LogQueue {
+    /// Creates a new [LogQueue](LogQueue).
+    ///
+    /// The queue acts as a ring-buffer, when it is full, new logs are inserted replacing older
+    /// logs.
+    ///
+    /// # Arguments
+    ///
+    /// * `buffer_size`: the size of the buffer.
+    ///
+    /// returns: LogBuffer
+    pub fn new(buffer_size: usize) -> Self {
+        Self(Arc::new(ArrayQueue::new(buffer_size)))
     }
+
+    /// Pops an element from the queue if any.
+    pub fn pop(&self) -> Option<LogMsg> {
+        self.0.pop()
+    }
+
+    /// Clears the log queue.
+    pub fn clear(&self) {
+        while self.pop().is_some() {}
+    }
+}
+
+/// A basic handler which redirects log messages to a queue.
+pub struct LogQueueHandler {
+    queue: LogQueue,
+}
+
+impl LogQueueHandler {
+    /// Creates a new [LogQueueHandler](LogQueueHandler)
+    ///
+    /// # Arguments
+    ///
+    /// * `queue`: the queue to record log messages into.
+    ///
+    /// returns: LogQueueHandler
+    pub fn new(queue: LogQueue) -> Self {
+        Self { queue }
+    }
+}
+
+impl Handler for LogQueueHandler {
+    fn install(&mut self, _: &Flag) {}
+
+    fn write(&mut self, msg: &LogMsg) {
+        self.queue.0.force_push(msg.clone());
+    }
+
+    fn flush(&mut self) {}
 }
