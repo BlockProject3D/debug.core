@@ -28,7 +28,9 @@
 
 //! Logging utilities.
 
+use std::fmt::Write;
 use bp3d_os::time::LocalOffsetDateTime;
+use bp3d_util::format::IoToFmt;
 use time::macros::format_description;
 use time::OffsetDateTime;
 use crate::LogMsg;
@@ -49,66 +51,35 @@ pub fn extract_target_module(base_string: &str) -> (&str, &str) {
     (target, module.unwrap_or("main"))
 }
 
-/// Unsafe [Write](std::io::Write) wrapper for [LogMsg].
-///
-/// This utility is provided for interactions with foreign APIs that only supports writing through
-/// the io::Write interface and are GUARANTEED to result in UTF-8 data (ex: time crate).
-pub struct IoWrapper<'a>(&'a mut LogMsg);
-
-impl<'a> IoWrapper<'a> {
-    /// Creates a new [Write](std::io::Write) wrapper for [LogMsg].
-    ///
-    /// Safety
-    ///
-    /// Subsequent calls to [Write](std::io::Write) must result in a valid UTF-8 string
-    /// once a call to [msg](LogMsg::msg) is made.
-    pub unsafe fn new(msg: &'a mut LogMsg) -> Self {
-        Self(msg)
-    }
-
-    /// Extracts the underlying [LogMsg] from this wrapper.
-    ///
-    /// Safety
-    ///
-    /// The content of the underlying [LogMsg] MUST be a valid UTF-8 string.
-    pub unsafe fn into_inner(self) -> &'a mut LogMsg {
-        self.0
-    }
-}
-
-impl<'a> std::io::Write for IoWrapper<'a> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        unsafe { Ok(self.0.write(buf)) }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
-/// Write time information into the given [LogMsg].
+/// Write time information into the given [Write](Write).
 ///
 /// # Arguments
 ///
-/// * `msg`: the [LogMsg] to write time information to.
+/// * `msg`: the [Write](Write) to write time information to.
 /// * `time`: the time to write.
 ///
 /// returns: ()
-pub fn write_time(msg: &mut LogMsg, time: OffsetDateTime) {
-    unsafe { msg.write(b"(") };
+pub fn write_time(msg: &mut impl Write, time: OffsetDateTime) {
+    let _ = msg.write_str("(");
     let format = format_description!("[weekday repr:short] [month repr:short] [day] [hour repr:12]:[minute]:[second] [period case:upper]");
-    let mut wrapper = unsafe { IoWrapper::new(msg) };
+    let mut wrapper = IoToFmt::new(msg);
     let _ = time.format_into(&mut wrapper, format);
-    unsafe { msg.write(b") ") };
+    let msg = wrapper.into_inner();
+    let _ = msg.write_str(")");
 }
 
-/// Adds the current time to the given [LogMsg].
-///
-/// # Arguments
-///
-/// * `msg`: the [LogMsg] to write time information to.
-///
-/// returns: ()
-pub fn add_time(msg: &mut LogMsg) {
-    write_time(msg, OffsetDateTime::now_local().unwrap_or_else(OffsetDateTime::now_utc))
+#[cfg(test)]
+mod tests  {
+    use bp3d_os::time::LocalOffsetDateTime;
+    use time::OffsetDateTime;
+    use crate::{Level, Location, LogMsg};
+    use crate::util::write_time;
+
+    #[test]
+    fn fhsdiub() {
+        let time = OffsetDateTime::now_local().unwrap_or_else(OffsetDateTime::now_utc);
+        let mut msg = LogMsg::new(Location::new("test", "test.c", 1), Level::Info);
+        write_time(&mut msg, time);
+        assert!(msg.msg().len() > 0);
+    }
 }

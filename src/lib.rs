@@ -33,19 +33,19 @@
 
 //! An async flexible logger framework designed for BP3D software.
 
-mod backend;
 mod easy_termcolor;
 mod internal;
 mod log_msg;
 pub mod util;
 mod builder;
 mod level;
+pub mod handler;
 
 use bp3d_os::dirs::App;
 use crossbeam_channel::Receiver;
 use std::path::PathBuf;
 
-pub use log_msg::LogMsg;
+pub use log_msg::{LogMsg, Location};
 pub use builder::*;
 pub use internal::Logger;
 pub use level::Level;

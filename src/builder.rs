@@ -26,7 +26,8 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::{backend, GetLogs};
+use crate::GetLogs;
+use crate::handler::{FileHandler, Handler, StdHandler};
 use crate::internal::Logger;
 
 /// Enum of the different color settings when printing to stdout/stderr.
@@ -55,27 +56,26 @@ impl Default for Colors {
 ///
 /// The following example shows basic initialization of this logger.
 /// ```
-/// use bp3d_logger::with_logger;
-/// use bp3d_logger::{Builder, Level, LogMsg};
+/// use bp3d_logger::{Builder, Level, LogMsg, Location};
 ///
 /// fn main() {
 ///     let logger = Builder::new().add_stdout().add_file("my-app").start();
-///     logger.checked_log(&LogMsg::from_msg("bp3d-logger", Level::Info, "Example message"));
+///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message"));
 /// }
 /// ```
 ///
 /// The following example shows initialization of this logger and use of the log buffer.
 /// ```
-/// use bp3d_logger::{Builder, Level, LogMsg};
+/// use bp3d_logger::{Builder, Level, LogMsg, Location};
 ///
 /// fn main() {
 ///     let logger = Builder::new().add_stdout().start();
 ///     logger.enable_log_buffer(true); // Enable log redirect pump into application channel.
 ///
 ///     //... application code with log redirect pump.///
-///     logger.checked_log(&LogMsg::from_msg("bp3d-logger", Level::Info, "Example message"));
+///     logger.log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message"));
 ///     logger.enable(false);
-///     logger.raw_log(&LogMsg::from_msg("bp3d-logger", Level::Info, "Example message 1"));
+///     logger.raw_log(&LogMsg::from_msg(Location::new("bp3d-logger", "test.c", 1), Level::Info, "Example message 1"));
 ///     logger.enable(true);
 ///
 ///     logger.flush();
@@ -91,9 +91,8 @@ impl Default for Colors {
 pub struct Builder {
     pub(crate) colors: Colors,
     pub(crate) smart_stderr: bool,
-    pub(crate) std: Option<backend::StdBackend>,
-    pub(crate) file: Option<backend::FileBackend>,
-    pub(crate) buf_size: Option<usize>
+    pub(crate) buf_size: Option<usize>,
+    pub(crate) handlers: Vec<Box<dyn Handler>>
 }
 
 impl Default for Builder {
@@ -101,9 +100,8 @@ impl Default for Builder {
         Self {
             colors: Colors::default(),
             smart_stderr: true,
-            std: None,
-            file: None,
-            buf_size: None
+            buf_size: None,
+            handlers: Vec::new()
         }
     }
 }
@@ -142,10 +140,23 @@ impl Builder {
         self
     }
 
+    /// Adds a new log [Handler](Handler).
+    ///
+    /// # Arguments
+    ///
+    /// * `handler`: the new handler implementation to add.
+    ///
+    /// returns: Builder
+    pub fn add_handler<T: Handler + 'static>(mut self, handler: T) -> Self {
+        self.handlers.push(Box::new(handler));
+        self
+    }
+
     /// Enables stdout logging.
     pub fn add_stdout(mut self) -> Self {
-        self.std = Some(backend::StdBackend::new(self.smart_stderr, self.colors));
-        self
+        let motherfuckingrust = self.smart_stderr;
+        let motherfuckingrust1 = self.colors;
+        self.add_handler(StdHandler::new(motherfuckingrust, motherfuckingrust1))
     }
 
     /// Enables file logging to the given application.
@@ -156,11 +167,11 @@ impl Builder {
     /// If the log directory could not be found the function prints an error to stderr.
     pub fn add_file<T: GetLogs>(mut self, app: T) -> Self {
         if let Some(logs) = app.get_logs() {
-            self.file = Some(backend::FileBackend::new(logs));
+            self.add_handler(FileHandler::new(logs))
         } else {
             eprintln!("Failed to obtain application log directory");
+            self
         }
-        self
     }
 
     /// Initializes the log implementation with this current configuration.

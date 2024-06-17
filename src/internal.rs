@@ -26,13 +26,13 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::backend::Backend;
-use crate::{LogMsg, Builder, Level};
+use crate::{LogMsg, Builder};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use crossbeam_queue::ArrayQueue;
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use crate::handler::{Flag, Handler};
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -48,35 +48,25 @@ enum Command {
     DisableLogBuffer,
 }
 
-fn log<T: Backend>(
-    backend: Option<&mut T>,
-    target: &str,
-    msg: &str,
-    level: Level,
-) -> Result<(), T::Error> {
-    if let Some(back) = backend {
-        back.write(target, msg, level)
-    } else {
-        Ok(())
-    }
-}
-
 struct Thread {
-    logger: Builder,
+    handlers: Vec<Box<dyn Handler>>,
     recv_ch: Receiver<Command>,
+    enable_stdout: Flag,
     enable_log_buffer: bool,
     log_buffer: Arc<ArrayQueue<LogMsg>>,
 }
 
 impl Thread {
     pub fn new(
-        logger: Builder,
+        builder: Builder,
         recv_ch: Receiver<Command>,
         log_buffer: Arc<ArrayQueue<LogMsg>>,
+        enable_stdout: Flag
     ) -> Thread {
         Thread {
-            logger,
+            handlers: builder.handlers,
             recv_ch,
+            enable_stdout,
             enable_log_buffer: false,
             log_buffer,
         }
@@ -86,33 +76,14 @@ impl Thread {
         match cmd {
             Command::Terminate => true,
             Command::Flush => {
-                if let Some(file) = &mut self.logger.file {
-                    if let Err(e) = file.flush() {
-                        let _ = log(
-                            self.logger.std.as_mut(),
-                            "bp3d-logger",
-                            &format!("Could not flush file backend: {}", e),
-                            Level::Error,
-                        );
-                    }
+                for v in &mut self.handlers {
+                    v.flush();
                 }
                 false
             }
             Command::Log(buffer) => {
-                let target = buffer.target();
-                let msg = buffer.msg();
-                let level = buffer.level();
-                if let Err(e) = log(self.logger.file.as_mut(), target, msg, level) {
-                    let _ = log(
-                        self.logger.std.as_mut(),
-                        "bp3d-logger",
-                        &format!("Could not write to file backend: {}", e),
-                        Level::Error,
-                    );
-                }
-                let _ = log(self.logger.std.as_mut(), target, msg, level);
-                if self.enable_log_buffer {
-                    self.log_buffer.force_push(buffer);
+                for v in &mut self.handlers {
+                    v.write(&buffer);
                 }
                 false
             }
@@ -128,6 +99,9 @@ impl Thread {
     }
 
     pub fn run(mut self) {
+        for v in &mut self.handlers {
+            v.install(&self.enable_stdout);
+        }
         while let Ok(v) = self.recv_ch.recv() {
             let flag = self.exec_commad(v);
             if flag {
@@ -142,7 +116,7 @@ impl Thread {
 pub struct Logger {
     send_ch: Sender<Command>,
     enabled: AtomicBool,
-    enable_stdout: Option<Arc<AtomicBool>>,
+    enable_stdout: Flag,
     log_buffer: Arc<ArrayQueue<LogMsg>>,
     thread: ManuallyDrop<std::thread::JoinHandle<()>>,
 }
@@ -157,9 +131,10 @@ impl Logger {
         let log_buffer = Arc::new(ArrayQueue::new(buf_size));
         let recv_ch1 = recv_ch.clone();
         let log_buffer1 = log_buffer.clone();
-        let enable_stdout = builder.std.as_ref().map(|v| v.get_enable());
+        let enable_stdout = Flag::new(true);
+        let enable_stdout1 = enable_stdout.clone();
         let thread = std::thread::spawn(move || {
-            let thread = Thread::new(builder, recv_ch1, log_buffer1);
+            let thread = Thread::new(builder, recv_ch1, log_buffer1, enable_stdout1);
             thread.run();
         });
         Logger {
@@ -177,7 +152,7 @@ impl Logger {
     ///
     /// * `flag`: true to enable stdout, false to disable stdout.
     pub fn enable_stdout(&self, flag: bool) {
-        self.enable_stdout.as_ref().map(|v| v.store(flag, Ordering::Release));
+        self.enable_stdout.set(flag);
     }
 
     /// Enables this logger.
@@ -220,8 +195,9 @@ impl Logger {
     /// - For file backend the format is \[level\] msg and the message is recorded in the file
     /// corresponding to the log target.
     ///
-    /// WARNING: For optimization reasons, this function does not check and thus does not honor
-    /// the enabled flag. For a checked log function, use [checked_log](Self::checked_log).
+    /// WARNING: For optimization reasons, this function does not check and thus does neither honor
+    /// the enabled flag nor the current log level. For a checked log function,
+    /// use [checked_log](Self::log).
     #[inline]
     pub fn raw_log(&self, msg: &LogMsg) {
         unsafe {
@@ -233,12 +209,12 @@ impl Logger {
         }
     }
 
-    /// Checked log function. This injects log messages into the logging thread channel only if
+    /// Main log function. This injects log messages into the logging thread channel only if
     /// this logger is enabled.
     ///
     /// This function calls the [raw_log](Self::raw_log) function only when this logger is enabled.
     #[inline]
-    pub fn checked_log(&self, msg: &LogMsg) {
+    pub fn log(&self, msg: &LogMsg) {
         if self.is_enabled() {
             self.raw_log(msg);
         }
@@ -283,5 +259,18 @@ impl Drop for Logger {
         // Join the logging thread; this will lock until the thread is completely terminated.
         let thread = unsafe { ManuallyDrop::into_inner(std::ptr::read(&self.thread)) };
         thread.join().unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Builder;
+
+    fn ensure_send_sync<T: Send + Sync>(_: T) {}
+
+    #[test]
+    fn basic_test() {
+        let logger = Builder::new().start();
+        ensure_send_sync(logger);
     }
 }
