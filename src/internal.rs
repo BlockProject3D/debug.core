@@ -26,12 +26,12 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::{LogMsg, Builder};
+use crate::handler::{Flag, Handler};
+use crate::level::LevelFilter;
+use crate::{Builder, LogMsg};
 use crossbeam_channel::{bounded, Receiver, Sender};
 use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicU8, Ordering};
-use crate::handler::{Flag, Handler};
-use crate::level::LevelFilter;
 
 const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 
@@ -42,25 +42,25 @@ const BUF_SIZE: usize = 16; // The maximum count of log messages in the channel.
 enum Command {
     Flush,
     Log(LogMsg),
-    Terminate
+    Terminate,
 }
 
 struct Thread {
     handlers: Vec<Box<dyn Handler>>,
     recv_ch: Receiver<Command>,
-    enable_stdout: Flag
+    enable_stdout: Flag,
 }
 
 impl Thread {
     pub fn new(
         handlers: Vec<Box<dyn Handler>>,
         recv_ch: Receiver<Command>,
-        enable_stdout: Flag
+        enable_stdout: Flag,
     ) -> Thread {
         Thread {
             handlers,
             recv_ch,
-            enable_stdout
+            enable_stdout,
         }
     }
 
@@ -119,7 +119,7 @@ impl Logger {
             thread: ManuallyDrop::new(thread),
             send_ch,
             level: AtomicU8::new(builder.filter as u8),
-            enable_stdout
+            enable_stdout,
         }
     }
 

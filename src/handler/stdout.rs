@@ -26,23 +26,23 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::io::IsTerminal;
-use std::mem::MaybeUninit;
-use bp3d_os::time::LocalUtcOffset;
-use bp3d_util::format::FixedBufStr;
-use termcolor::{ColorChoice, ColorSpec, StandardStream};
-use time::{OffsetDateTime, UtcOffset};
-use crate::{Colors, Level, Location, LogMsg};
 use crate::easy_termcolor::{color, EasyTermColor};
 use crate::handler::{Flag, Handler};
 use crate::util::write_time;
+use crate::{Colors, Level, Location, LogMsg};
+use bp3d_os::time::LocalUtcOffset;
+use bp3d_util::format::FixedBufStr;
+use std::io::IsTerminal;
+use std::mem::MaybeUninit;
+use termcolor::{ColorChoice, ColorSpec, StandardStream};
+use time::{OffsetDateTime, UtcOffset};
 
 /// A simple stdout/stderr handler which redirects error messages to stderr and other messages to
 /// stdout.
 pub struct StdHandler {
     smart_stderr: bool,
     colors: Colors,
-    enable: MaybeUninit<Flag>
+    enable: MaybeUninit<Flag>,
 }
 
 fn format_time_str(time: &OffsetDateTime) -> FixedBufStr<128> {
@@ -53,7 +53,13 @@ fn format_time_str(time: &OffsetDateTime) -> FixedBufStr<128> {
     time_str
 }
 
-fn write_msg(stream: StandardStream, location: &Location, time: &OffsetDateTime, msg: &str, level: Level) {
+fn write_msg(
+    stream: StandardStream,
+    location: &Location,
+    time: &OffsetDateTime,
+    msg: &str,
+    level: Level,
+) {
     let (target, module) = location.get_target_module();
     let t = ColorSpec::new().set_bold(true).clone();
     let time_str = format_time_str(time);
@@ -103,7 +109,7 @@ impl StdHandler {
         StdHandler {
             smart_stderr,
             colors,
-            enable: MaybeUninit::uninit()
+            enable: MaybeUninit::uninit(),
         }
     }
 
@@ -146,13 +152,26 @@ impl Handler for StdHandler {
                 let (target, module) = msg.location().get_target_module();
                 let time_str = format_time_str(msg.time());
                 match stream {
-                    Stream::Stderr => eprintln!("<{}> [{}] {} {}: {}", target, msg.level(), time_str.str(), module, msg.msg()),
-                    _ => println!("<{}> [{}] {} {}: {}", target, msg.level(), time_str.str(), module, msg.msg())
+                    Stream::Stderr => eprintln!(
+                        "<{}> [{}] {} {}: {}",
+                        target,
+                        msg.level(),
+                        time_str.str(),
+                        module,
+                        msg.msg()
+                    ),
+                    _ => println!(
+                        "<{}> [{}] {} {}: {}",
+                        target,
+                        msg.level(),
+                        time_str.str(),
+                        module,
+                        msg.msg()
+                    ),
                 };
             }
         };
     }
 
-    fn flush(&mut self) {
-    }
+    fn flush(&mut self) {}
 }

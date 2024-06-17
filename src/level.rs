@@ -63,7 +63,7 @@ pub enum LevelFilter {
     // This way these line up with the discriminants for LevelFilter below
     // This works because Rust treats field-less enums the same way as C does:
     // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
-    Error = 5
+    Error = 5,
 }
 
 impl LevelFilter {
@@ -117,7 +117,7 @@ pub enum Level {
     // This way these line up with the discriminants for LevelFilter below
     // This works because Rust treats field-less enums the same way as C does:
     // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
-    Error = 5
+    Error = 5,
 }
 
 static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR"];

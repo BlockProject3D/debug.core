@@ -26,11 +26,11 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use crate::util::extract_target_module;
+use crate::Level;
 use std::fmt::{Error, Write};
 use std::mem::MaybeUninit;
 use time::OffsetDateTime;
-use crate::Level;
-use crate::util::extract_target_module;
 
 // Size of the control fields of the log message structure:
 // 40 bytes of Location structure (&'static str is 16 bytes) + 16 bytes of OffsetDateTime + 4 bytes of msg len + 1 byte of Level + 3 bytes of padding
@@ -44,7 +44,7 @@ const LOG_BUFFER_SIZE: usize = 1024;
 pub struct Location {
     module_path: &'static str,
     file: &'static str,
-    line: u32
+    line: u32,
 }
 
 impl Location {
@@ -63,7 +63,7 @@ impl Location {
         Self {
             module_path,
             file,
-            line
+            line,
         }
     }
 
@@ -266,9 +266,7 @@ impl LogMsg {
     pub fn msg(&self) -> &str {
         // SAFETY: This is always safe because LogMsg is always UTF-8.
         unsafe {
-            std::str::from_utf8_unchecked(std::mem::transmute(
-                &self.buffer[..self.msg_len as _],
-            ))
+            std::str::from_utf8_unchecked(std::mem::transmute(&self.buffer[..self.msg_len as _]))
         }
     }
 
