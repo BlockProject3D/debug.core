@@ -69,7 +69,9 @@ pub fn write_time(msg: &mut impl Write, time: OffsetDateTime) {
 /// Generate a [Location](crate::Location) structure.
 #[macro_export]
 macro_rules! location {
-    () => {$crate::Location::new(module_path!(), file!(), line!())};
+    () => {
+        $crate::Location::new(module_path!(), file!(), line!())
+    };
 }
 
 #[cfg(test)]
