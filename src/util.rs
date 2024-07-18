@@ -66,6 +66,12 @@ pub fn write_time(msg: &mut impl Write, time: OffsetDateTime) {
     let _ = msg.write_str(")");
 }
 
+/// Generate a [Location](crate::Location) structure.
+#[macro_export]
+macro_rules! location {
+    () => {$crate::Location::new(module_path!(), file!(), line!())};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::util::write_time;
