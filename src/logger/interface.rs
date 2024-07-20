@@ -56,8 +56,8 @@ pub trait Logger {
 
 #[cfg(test)]
 mod tests {
-    use crate::{log, trace};
     use crate::logger::Level;
+    use crate::{log, trace};
 
     #[test]
     fn api_test() {
