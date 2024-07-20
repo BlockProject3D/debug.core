@@ -26,8 +26,10 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
+#[macro_export]
+macro_rules! span {
+    ($name: ident) => {
+        static $name: $crate::trace::span::Callsite =
+            $crate::trace::span::Callsite::new(stringify!($name), bp3d_logger::location!());
+    };
+}

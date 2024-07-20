@@ -26,8 +26,43 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
+use crate::field::Field;
+use bp3d_logger::{Level, Location};
+use std::fmt::Arguments;
+
+pub struct Callsite {
+    location: Location,
+    level: Level,
+}
+
+impl Callsite {
+    pub const fn new(location: Location, level: Level) -> Self {
+        Self { location, level }
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.location
+    }
+
+    pub fn level(&self) -> Level {
+        self.level
+    }
+}
+
+pub trait Logger {
+    fn log(&self, callsite: &'static Callsite, msg: Arguments, fields: &[Field]);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{log, trace};
+    use bp3d_logger::Level;
+
+    #[test]
+    fn api_test() {
+        let i = 42;
+        log!(Level::Info, { i }, "test: {i}: {}", i);
+        log!(Level::Error, "test: {}", i);
+        trace!({i} {?i} {id=i}, "test: {}", i);
+    }
+}

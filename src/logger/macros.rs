@@ -26,8 +26,54 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
+#[macro_export]
+macro_rules! log {
+    ($level: expr, $({$($field: tt)*})*, $msg: literal $(,$($args: tt)*)?) => {
+        {
+            static _CALLSITE: $crate::logger::Callsite = $crate::logger::Callsite::new(bp3d_logger::location!(), $level);
+            $crate::engine::get().log(&_CALLSITE, format_args!($msg $(, $($args),*)?), &[$($crate::field!($($field)*),)*]);
+        }
+    };
+    ($level: expr, $msg: literal $(,$($args: tt)*)?) => {
+        {
+            static _CALLSITE: $crate::logger::Callsite = $crate::logger::Callsite::new(bp3d_logger::location!(), $level);
+            $crate::engine::get().log(&_CALLSITE, format_args!($msg $(, $($args),*)?), &[]);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! trace {
+    ($($args: tt)*) => {
+        #[cfg(debug_assertions)]
+        $crate::log!(bp3d_logger::Level::Trace, $($args)*);
+    };
+}
+
+#[macro_export]
+macro_rules! debug {
+    ($($args: tt)*) => {
+        $crate::log!(bp3d_logger::Level::Debug, $($args)*);
+    };
+}
+
+#[macro_export]
+macro_rules! info {
+    ($($args: tt)*) => {
+        $crate::log!(bp3d_logger::Level::Info, $($args)*);
+    };
+}
+
+#[macro_export]
+macro_rules! warning {
+    ($($args: tt)*) => {
+        $crate::log!(bp3d_logger::Level::Warn, $($args)*);
+    };
+}
+
+#[macro_export]
+macro_rules! error {
+    ($($args: tt)*) => {
+        $crate::log!(bp3d_logger::Level::Error, $($args)*);
+    };
+}

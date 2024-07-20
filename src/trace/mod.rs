@@ -26,55 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::Level;
-use std::fmt::Display;
-use termcolor::{Color, ColorSpec};
+mod future;
+mod interface;
+mod macros;
+pub mod span;
 
-pub struct EasyTermColor<T: termcolor::WriteColor>(pub T);
-
-impl<T: termcolor::WriteColor> EasyTermColor<T> {
-    pub fn write(mut self, elem: impl Display) -> Self {
-        let _ = write!(&mut self.0, "{}", elem);
-        self
-    }
-
-    pub fn color(mut self, elem: ColorSpec) -> Self {
-        let _ = self.0.set_color(&elem);
-        self
-    }
-
-    pub fn reset(mut self) -> Self {
-        let _ = self.0.reset();
-        self
-    }
-
-    pub fn lf(mut self) -> Self {
-        let _ = writeln!(&mut self.0);
-        self
-    }
-}
-
-pub fn color(level: Level) -> ColorSpec {
-    match level {
-        Level::Error => ColorSpec::new()
-            .set_fg(Some(Color::Red))
-            .set_bold(true)
-            .clone(),
-        Level::Warn => ColorSpec::new()
-            .set_fg(Some(Color::Yellow))
-            .set_bold(true)
-            .clone(),
-        Level::Info => ColorSpec::new()
-            .set_fg(Some(Color::Green))
-            .set_bold(true)
-            .clone(),
-        Level::Debug => ColorSpec::new()
-            .set_fg(Some(Color::Blue))
-            .set_bold(true)
-            .clone(),
-        Level::Trace => ColorSpec::new()
-            .set_fg(Some(Color::Cyan))
-            .set_bold(true)
-            .clone(),
-    }
-}
+pub use interface::*;

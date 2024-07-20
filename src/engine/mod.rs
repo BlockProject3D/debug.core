@@ -26,75 +26,50 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use crate::handler::{Flag, Handler};
-use crate::LogMsg;
-use crossbeam_queue::ArrayQueue;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-const DEFAULT_BUF_SIZE: usize = 32;
+mod void;
 
-/// A log queue.
-///
-/// The default size of the log queue is 32 log messages, that is 32 * 1024 = 32768 bytes.
-#[derive(Clone)]
-pub struct LogQueue(Arc<ArrayQueue<LogMsg>>);
-
-impl Default for LogQueue {
-    fn default() -> Self {
-        Self::new(DEFAULT_BUF_SIZE)
-    }
+pub trait Engine:
+    crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer + Sync
+{
+}
+impl<T: crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer + Sync> Engine
+    for T
+{
 }
 
-impl LogQueue {
-    /// Creates a new [LogQueue](LogQueue).
-    ///
-    /// The queue acts as a ring-buffer, when it is full, new logs are inserted replacing older
-    /// logs.
-    ///
-    /// # Arguments
-    ///
-    /// * `buffer_size`: the size of the buffer.
-    ///
-    /// returns: LogBuffer
-    pub fn new(buffer_size: usize) -> Self {
-        Self(Arc::new(ArrayQueue::new(buffer_size)))
-    }
+static ENGINE_INIT_FLAG: AtomicBool = AtomicBool::new(false);
 
-    /// Pops an element from the queue if any.
-    pub fn pop(&self) -> Option<LogMsg> {
-        self.0.pop()
-    }
+static mut ENGINE: &dyn Engine = &void::VoidDebugger {};
 
-    /// Clears the log queue.
-    pub fn clear(&self) {
-        while self.pop().is_some() {}
-    }
+pub fn get() -> &'static dyn Engine {
+    unsafe { ENGINE }
 }
 
-/// A basic handler which redirects log messages to a queue.
-pub struct LogQueueHandler {
-    queue: LogQueue,
+pub fn set(engine: &'static dyn Engine) -> bool {
+    let flag = ENGINE_INIT_FLAG.load(Ordering::Relaxed);
+    if flag {
+        return false;
+    }
+    unsafe { ENGINE = engine };
+    ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
+    true
 }
 
-impl LogQueueHandler {
-    /// Creates a new [LogQueueHandler](LogQueueHandler)
-    ///
-    /// # Arguments
-    ///
-    /// * `queue`: the queue to record log messages into.
-    ///
-    /// returns: LogQueueHandler
-    pub fn new(queue: LogQueue) -> Self {
-        Self { queue }
-    }
-}
+#[cfg(test)]
+mod tests {
+    use std::num::NonZeroU32;
 
-impl Handler for LogQueueHandler {
-    fn install(&mut self, _: &Flag) {}
-
-    fn write(&mut self, msg: &LogMsg) {
-        self.queue.0.force_push(msg.clone());
+    #[test]
+    fn basic() {
+        crate::engine::set(&crate::engine::void::VoidDebugger {});
+        assert!(!crate::engine::set(&crate::engine::void::VoidDebugger {}));
     }
 
-    fn flush(&mut self) {}
+    #[test]
+    fn after_use() {
+        crate::engine::get().span_exit(unsafe { NonZeroU32::new_unchecked(1) });
+        assert!(!crate::engine::set(&crate::engine::void::VoidDebugger {}));
+    }
 }
