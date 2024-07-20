@@ -27,7 +27,8 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::field::Field;
-use bp3d_logger::{Level, Location};
+use crate::logger::Level;
+use crate::util::Location;
 use std::fmt::Arguments;
 
 pub struct Callsite {
@@ -56,7 +57,7 @@ pub trait Logger {
 #[cfg(test)]
 mod tests {
     use crate::{log, trace};
-    use bp3d_logger::Level;
+    use crate::logger::Level;
 
     #[test]
     fn api_test() {

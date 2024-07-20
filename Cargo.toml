@@ -11,9 +11,3 @@ keywords = ["bp3d", "tracing"]
 categories = ["development-tools", "development-tools::debugging", "development-tools::profiling"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-bp3d-logger = "2.0.0-rc.2.1.0"
-
-[build-dependencies]
-semver = "1.0.7"

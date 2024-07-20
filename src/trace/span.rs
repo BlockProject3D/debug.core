@@ -27,7 +27,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::field::Field;
-use bp3d_logger::Location;
+use crate::util::Location;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
 

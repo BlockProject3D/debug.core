@@ -27,7 +27,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 use crate::field::FieldSet;
-use bp3d_logger::Location;
+use crate::util::Location;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
 use std::time::Instant;
@@ -121,8 +121,7 @@ impl Section {
 mod tests {
     use crate::field::FieldSet;
     use crate::profiler::section::{Level, Section};
-    use crate::{fields, profiler_section_start};
-    use bp3d_logger::location;
+    use crate::{fields, location, profiler_section_start};
 
     #[test]
     fn basic() {
