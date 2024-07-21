@@ -26,8 +26,9 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 
+#[derive(Debug)]
 pub enum FieldValue<'a> {
     Int(i64),
     UInt(u64),
@@ -35,6 +36,19 @@ pub enum FieldValue<'a> {
     Double(f64),
     String(&'a str),
     Debug(&'a dyn Debug),
+}
+
+impl<'a> Display for FieldValue<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldValue::Int(v) => write!(f, "{}", v),
+            FieldValue::UInt(v) => write!(f, "{}", v),
+            FieldValue::Float(v) => write!(f, "{}", v),
+            FieldValue::Double(v) => write!(f, "{}", v),
+            FieldValue::String(v) => f.write_str(v),
+            FieldValue::Debug(v) => write!(f, "{:?}", v)
+        }
+    }
 }
 
 pub struct Field<'a> {
