@@ -37,7 +37,9 @@ pub struct Id(NonZeroU64);
 
 impl Id {
     pub fn new(callsite: NonZeroU32, instance: NonZeroU32) -> Self {
-        Self(unsafe { NonZeroU64::new_unchecked((callsite.get() as u64) << 32 | instance.get() as u64) })
+        Self(unsafe {
+            NonZeroU64::new_unchecked((callsite.get() as u64) << 32 | instance.get() as u64)
+        })
     }
 
     pub fn from_raw(id: NonZeroU64) -> Self {
@@ -104,13 +106,17 @@ impl Span {
     pub fn with_fields(callsite: &'static Callsite, fields: &[Field]) -> Self {
         let callsite = *callsite.get_id();
         let instance = crate::engine::get().span_create(callsite, fields);
-        Self { id: Id::new(callsite, instance) }
+        Self {
+            id: Id::new(callsite, instance),
+        }
     }
 
     pub fn new(callsite: &'static Callsite) -> Self {
         let callsite = *callsite.get_id();
         let instance = crate::engine::get().span_create(callsite, &[]);
-        Self { id: Id::new(callsite, instance) }
+        Self {
+            id: Id::new(callsite, instance),
+        }
     }
 
     pub fn record(&self, fields: &[Field]) {
