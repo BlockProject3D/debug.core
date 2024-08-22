@@ -46,7 +46,7 @@ impl<'a> Display for FieldValue<'a> {
             FieldValue::Float(v) => write!(f, "{}", v),
             FieldValue::Double(v) => write!(f, "{}", v),
             FieldValue::String(v) => f.write_str(v),
-            FieldValue::Debug(v) => write!(f, "{:?}", v)
+            FieldValue::Debug(v) => write!(f, "{:?}", v),
         }
     }
 }
