@@ -28,7 +28,7 @@
 
 use crate::engine::ENGINE_INIT_FLAG;
 use crate::field::Field;
-use crate::trace::span::Callsite;
+use crate::trace::span::{Callsite, Id};
 use std::fmt::Arguments;
 use std::num::NonZeroU32;
 use std::sync::atomic::Ordering;
@@ -57,15 +57,15 @@ impl crate::trace::Tracer for VoidDebugger {
         unsafe { NonZeroU32::new_unchecked(1) }
     }
 
-    fn span_enter(&self, _: NonZeroU32) {
+    fn span_enter(&self, _: Id) {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
     }
 
-    fn span_record(&self, _: NonZeroU32, _: &[Field]) {
+    fn span_record(&self, _: Id, _: &[Field]) {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
     }
 
-    fn span_exit(&self, _: NonZeroU32) {
+    fn span_exit(&self, _: Id) {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
     }
 }

@@ -60,6 +60,7 @@ pub fn set(engine: &'static dyn Engine) -> bool {
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
+    use crate::trace::span::Id;
 
     #[test]
     fn basic() {
@@ -69,7 +70,7 @@ mod tests {
 
     #[test]
     fn after_use() {
-        crate::engine::get().span_exit(unsafe { NonZeroU32::new_unchecked(1) });
+        crate::engine::get().span_exit(Id::new(unsafe { NonZeroU32::new_unchecked(1) }, unsafe { NonZeroU32::new_unchecked(1) }));
         assert!(!crate::engine::set(&crate::engine::void::VoidDebugger {}));
     }
 }

@@ -28,8 +28,34 @@
 
 use crate::field::Field;
 use crate::util::Location;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::OnceLock;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[repr(transparent)]
+pub struct Id(NonZeroU64);
+
+impl Id {
+    pub fn new(callsite: NonZeroU32, instance: NonZeroU32) -> Self {
+        Self(unsafe { NonZeroU64::new_unchecked((callsite.get() as u64) << 32 | instance.get() as u64) })
+    }
+
+    pub fn from_raw(id: NonZeroU64) -> Self {
+        Self(id)
+    }
+
+    pub fn into_raw(self) -> NonZeroU64 {
+        self.0
+    }
+
+    pub fn get_callsite(&self) -> NonZeroU32 {
+        unsafe { NonZeroU32::new_unchecked((self.0.get() >> 32) as u32) }
+    }
+
+    pub fn get_instance(&self) -> NonZeroU32 {
+        unsafe { NonZeroU32::new_unchecked(self.0.get() as u32) }
+    }
+}
 
 pub struct Callsite {
     name: &'static str,
@@ -61,7 +87,7 @@ impl Callsite {
 }
 
 pub struct Entered {
-    id: NonZeroU32,
+    id: Id,
 }
 
 impl Drop for Entered {
@@ -71,18 +97,20 @@ impl Drop for Entered {
 }
 
 pub struct Span {
-    id: NonZeroU32,
+    id: Id,
 }
 
 impl Span {
     pub fn with_fields(callsite: &'static Callsite, fields: &[Field]) -> Self {
-        let id = crate::engine::get().span_create(*callsite.get_id(), fields);
-        Self { id }
+        let callsite = *callsite.get_id();
+        let instance = crate::engine::get().span_create(callsite, fields);
+        Self { id: Id::new(callsite, instance) }
     }
 
     pub fn new(callsite: &'static Callsite) -> Self {
-        let id = crate::engine::get().span_create(*callsite.get_id(), &[]);
-        Self { id }
+        let callsite = *callsite.get_id();
+        let instance = crate::engine::get().span_create(callsite, &[]);
+        Self { id: Id::new(callsite, instance) }
     }
 
     pub fn record(&self, fields: &[Field]) {
@@ -97,7 +125,6 @@ impl Span {
 #[cfg(test)]
 mod tests {
     use crate::profiler::section::Level;
-    use crate::trace::span::Span;
     use crate::{fields, span};
 
     #[test]
@@ -105,13 +132,8 @@ mod tests {
         let value = 32;
         let str = "this is a test";
         let lvl = Level::Event;
-        span!(API_TEST);
-        span!(API_TEST2);
-        let _span = Span::new(&API_TEST);
-        let span = Span::with_fields(
-            &API_TEST2,
-            fields!({value} {str} {?lvl} {test=value}).as_ref(),
-        );
+        let _span = span!(API_TEST);
+        let span = span!(API_TEST2, {value} {str} {?lvl} {test=value});
         span.record(fields!({ test2 = str }).as_ref());
         let _entered = span.enter();
     }

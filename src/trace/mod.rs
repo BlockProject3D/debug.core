@@ -26,6 +26,8 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+//TODO: implement support for storing both the callsite and instance numbers and return them when calling the underlying tracer interface.
+
 mod future;
 mod interface;
 mod macros;
