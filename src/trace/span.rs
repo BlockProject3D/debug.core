@@ -31,7 +31,7 @@ use crate::util::Location;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::OnceLock;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[repr(transparent)]
 pub struct Id(NonZeroU64);
 
