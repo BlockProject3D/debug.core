@@ -43,7 +43,7 @@ pub fn extract_target_module(base_string: &str) -> (&str, &str) {
 }
 
 /// The context of a log message.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Location {
     module_path: &'static str,
     file: &'static str,
