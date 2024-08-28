@@ -65,7 +65,9 @@ mod tests {
     #[test]
     fn basic() {
         crate::engine::set(&crate::engine::default::DefaultDebugger {});
-        assert!(!crate::engine::set(&crate::engine::default::DefaultDebugger {}));
+        assert!(!crate::engine::set(
+            &crate::engine::default::DefaultDebugger {}
+        ));
     }
 
     #[test]
@@ -73,6 +75,8 @@ mod tests {
         crate::engine::get().span_exit(Id::new(unsafe { NonZeroU32::new_unchecked(1) }, unsafe {
             NonZeroU32::new_unchecked(1)
         }));
-        assert!(!crate::engine::set(&crate::engine::default::DefaultDebugger {}));
+        assert!(!crate::engine::set(
+            &crate::engine::default::DefaultDebugger {}
+        ));
     }
 }
