@@ -28,13 +28,13 @@
 
 #[macro_export]
 macro_rules! log {
-    ($level: expr, $({$($field: tt)*})*, $msg: literal $(,$($args: tt)*)?) => {
+    ($level: expr, $({$($field: tt)*})*, $msg: literal $(,$($args: expr),*)?) => {
         {
             static _CALLSITE: $crate::logger::Callsite = $crate::logger::Callsite::new($crate::location!(), $level);
             $crate::engine::get().log(&_CALLSITE, format_args!($msg $(, $($args),*)?), &[$($crate::field!($($field)*),)*]);
         }
     };
-    ($level: expr, $msg: literal $(,$($args: tt)*)?) => {
+    ($level: expr, $msg: literal $(,$($args: expr),*)?) => {
         {
             static _CALLSITE: $crate::logger::Callsite = $crate::logger::Callsite::new($crate::location!(), $level);
             $crate::engine::get().log(&_CALLSITE, format_args!($msg $(, $($args),*)?), &[]);
