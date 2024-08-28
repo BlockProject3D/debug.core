@@ -33,9 +33,9 @@ use std::fmt::Arguments;
 use std::num::NonZeroU32;
 use std::sync::atomic::Ordering;
 
-pub struct VoidDebugger {}
+pub struct DefaultDebugger {}
 
-impl crate::profiler::Profiler for VoidDebugger {
+impl crate::profiler::Profiler for DefaultDebugger {
     fn section_register(&self, _: &'static crate::profiler::section::Section) -> NonZeroU32 {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
         unsafe { NonZeroU32::new_unchecked(1) }
@@ -46,7 +46,7 @@ impl crate::profiler::Profiler for VoidDebugger {
     }
 }
 
-impl crate::trace::Tracer for VoidDebugger {
+impl crate::trace::Tracer for DefaultDebugger {
     fn register_callsite(&self, _: &'static Callsite) -> NonZeroU32 {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
         unsafe { NonZeroU32::new_unchecked(1) }
@@ -70,13 +70,18 @@ impl crate::trace::Tracer for VoidDebugger {
     }
 }
 
-impl crate::logger::Logger for VoidDebugger {
-    fn log(&self, callsite: &'static crate::logger::Callsite, args: Arguments, _: &[Field]) {
+impl crate::logger::Logger for DefaultDebugger {
+    fn log(&self, callsite: &'static crate::logger::Callsite, args: Arguments, fields: &[Field]) {
+        let mut s = String::new();
+        for field in fields {
+            s += &format!(", {}={}", field.name(), field.value());
+        }
         println!(
-            "[{}] {}: {}",
+            "[{}] {}: {}{}",
             callsite.level(),
             callsite.location().module_path(),
-            args
+            args,
+            s
         );
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
     }

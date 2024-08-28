@@ -28,7 +28,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
-mod void;
+mod default;
 
 pub trait Engine:
     crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer + Sync
@@ -41,7 +41,7 @@ impl<T: crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer
 
 static ENGINE_INIT_FLAG: AtomicBool = AtomicBool::new(false);
 
-static mut ENGINE: &dyn Engine = &void::VoidDebugger {};
+static mut ENGINE: &dyn Engine = &default::DefaultDebugger {};
 
 pub fn get() -> &'static dyn Engine {
     unsafe { ENGINE }
@@ -64,8 +64,8 @@ mod tests {
 
     #[test]
     fn basic() {
-        crate::engine::set(&crate::engine::void::VoidDebugger {});
-        assert!(!crate::engine::set(&crate::engine::void::VoidDebugger {}));
+        crate::engine::set(&crate::engine::default::DefaultDebugger {});
+        assert!(!crate::engine::set(&crate::engine::default::DefaultDebugger {}));
     }
 
     #[test]
@@ -73,6 +73,6 @@ mod tests {
         crate::engine::get().span_exit(Id::new(unsafe { NonZeroU32::new_unchecked(1) }, unsafe {
             NonZeroU32::new_unchecked(1)
         }));
-        assert!(!crate::engine::set(&crate::engine::void::VoidDebugger {}));
+        assert!(!crate::engine::set(&crate::engine::default::DefaultDebugger {}));
     }
 }
