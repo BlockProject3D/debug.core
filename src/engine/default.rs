@@ -68,6 +68,10 @@ impl crate::trace::Tracer for DefaultDebugger {
     fn span_exit(&self, _: Id) {
         ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
     }
+
+    fn span_destroy(&self, _: Id) {
+        ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
+    }
 }
 
 impl crate::logger::Logger for DefaultDebugger {
