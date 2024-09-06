@@ -36,6 +36,7 @@ pub trait Tracer {
     fn span_enter(&self, id: Id);
     fn span_record(&self, id: Id, fields: &[Field]);
     fn span_exit(&self, id: Id);
+    fn span_destroy(&self, id: Id);
 }
 
 pub trait Trace {

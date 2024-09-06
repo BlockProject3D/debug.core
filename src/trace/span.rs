@@ -123,8 +123,14 @@ impl Span {
         crate::engine::get().span_record(self.id, fields);
     }
 
-    pub fn enter(self) -> Entered {
+    pub fn enter(&self) -> Entered {
         Entered { id: self.id }
+    }
+}
+
+impl Drop for Span {
+    fn drop(&mut self) {
+        crate::engine::get().span_destroy(self.id);
     }
 }
 
