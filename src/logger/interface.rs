@@ -69,6 +69,6 @@ mod tests {
         trace!({i} {?i} {id=i}, "test: {}", i);
         trace!("test: {}, {}", i, i);
         trace!("test41_42: {}, {}", tuple.0, tuple.1);
-        trace!({b}, "a boolean");
+        trace!({ b }, "a boolean");
     }
 }
