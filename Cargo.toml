@@ -1,6 +1,6 @@
 [package]
 name = "bp3d-debug"
-version = "1.0.0-rc.6.0.0"
+version = "1.0.0-rc.6.1.0"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2021"
 description = "Tracing subscriber implementations for use with BP3D software. Supports traditional logging through bp3d-logger and supports remote profiling through TCP."
