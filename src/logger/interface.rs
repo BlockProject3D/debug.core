@@ -63,10 +63,12 @@ mod tests {
     fn api_test() {
         let tuple = (41, 42);
         let i = 42;
+        let b = true;
         log!(Level::Info, { i }, "test: {i}: {}", i);
         log!(Level::Error, "test: {}", i);
         trace!({i} {?i} {id=i}, "test: {}", i);
         trace!("test: {}, {}", i, i);
         trace!("test41_42: {}, {}", tuple.0, tuple.1);
+        trace!({b}, "a boolean");
     }
 }

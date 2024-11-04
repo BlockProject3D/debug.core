@@ -36,6 +36,7 @@ pub enum FieldValue<'a> {
     Double(f64),
     String(&'a str),
     Debug(&'a dyn Debug),
+    Boolean(bool)
 }
 
 impl<'a> Display for FieldValue<'a> {
@@ -47,6 +48,7 @@ impl<'a> Display for FieldValue<'a> {
             FieldValue::Double(v) => write!(f, "{}", v),
             FieldValue::String(v) => f.write_str(v),
             FieldValue::Debug(v) => write!(f, "{:?}", v),
+            FieldValue::Boolean(v) => write!(f, "{:?}", v)
         }
     }
 }
@@ -103,7 +105,8 @@ impl_into_field_value! {
     i32 => Int,
     i64 => Int,
     f32 => Float,
-    f64 => Double
+    f64 => Double,
+    bool => Boolean
 }
 
 impl<'a> From<&'a str> for FieldValue<'a> {
