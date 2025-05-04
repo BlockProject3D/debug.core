@@ -1,4 +1,4 @@
-// Copyright (c) 2024, BlockProject 3D
+// Copyright (c) 2025, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -100,10 +100,12 @@ impl_into_field_value! {
     u16 => UInt,
     u32 => UInt,
     u64 => UInt,
+    usize => UInt,
     i8 => Int,
     i16 => Int,
     i32 => Int,
     i64 => Int,
+    isize => Int,
     f32 => Float,
     f64 => Double,
     bool => Boolean
