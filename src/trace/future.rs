@@ -26,9 +26,41 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+use crate::trace::span::{Entered, Span};
+use crate::trace::Trace;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+pub struct TracedFuture<F> {
+    future: F,
+    span: Option<Entered>,
+}
+
+impl<F: Future> Future for TracedFuture<F> {
+    type Output = F::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        unsafe {
+            let pin = Pin::new_unchecked(&mut self.future);
+            let value = pin.poll(cx);
+            if value.is_ready() {
+                drop(self.span.take());
+            }
+            value
+        }
+    }
+}
+
+impl<F> Unpin for TracedFuture<F> {}
+
+impl<F: Future> Trace for F {
+    type Output = TracedFuture<F>;
+
+    fn trace(self, span: Span) -> Self::Output {
+        TracedFuture {
+            future: self,
+            span: Some(span.enter()),
+        }
+    }
+}

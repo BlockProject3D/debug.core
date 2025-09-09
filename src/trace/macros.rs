@@ -26,9 +26,20 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+#[macro_export]
+macro_rules! span {
+    ($name: ident, $({$($field: tt)*})*) => {
+        {
+            static $name: $crate::trace::span::Callsite =
+                $crate::trace::span::Callsite::new(stringify!($name), $crate::location!());
+            $crate::trace::span::Span::with_fields(&$name, &[$($crate::field!($($field)*),)*])
+        }
+    };
+    ($name: ident) => {
+        {
+            static $name: $crate::trace::span::Callsite =
+                $crate::trace::span::Callsite::new(stringify!($name), $crate::location!());
+            $crate::trace::span::Span::new(&$name)
+        }
+    };
+}

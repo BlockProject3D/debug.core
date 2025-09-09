@@ -26,9 +26,49 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+use crate::field::Field;
+use crate::logger::Level;
+use crate::util::Location;
+use std::fmt::Arguments;
+
+pub struct Callsite {
+    location: Location,
+    level: Level,
+}
+
+impl Callsite {
+    pub const fn new(location: Location, level: Level) -> Self {
+        Self { location, level }
+    }
+
+    pub fn location(&self) -> &Location {
+        &self.location
+    }
+
+    pub fn level(&self) -> Level {
+        self.level
+    }
+}
+
+pub trait Logger {
+    fn log(&self, callsite: &'static Callsite, msg: Arguments, fields: &[Field]);
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::logger::Level;
+    use crate::{log, trace};
+
+    #[test]
+    fn api_test() {
+        let tuple = (41, 42);
+        let i = 42;
+        let b = true;
+        log!(Level::Info, { i }, "test: {i}: {}", i);
+        log!(Level::Error, "test: {}", i);
+        trace!({i} {?i} {id=i}, "test: {}", i);
+        trace!("test: {}, {}", i, i);
+        trace!("test41_42: {}, {}", tuple.0, tuple.1);
+        trace!({ b }, "a boolean");
+    }
+}

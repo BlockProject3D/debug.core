@@ -26,9 +26,54 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+use std::fmt::{Display, Formatter};
+
+/// An enum representing the available verbosity levels for a message.
+#[repr(u8)]
+#[derive(Clone, PartialEq, Copy, Ord, PartialOrd, Eq, Debug, Hash)]
+pub enum Level {
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace = 1,
+
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug = 2,
+
+    /// The "info" level.
+    ///
+    /// Designates useful information.
+    Info = 3,
+
+    /// The "warn" level.
+    ///
+    /// Designates hazardous situations.
+    Warn = 4,
+
+    /// The "error" level.
+    ///
+    /// Designates very serious errors.
+    // This way these line up with the discriminants for LevelFilter below
+    // This works because Rust treats field-less enums the same way as C does:
+    // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
+    Error = 5,
+}
+
+static LOG_LEVEL_NAMES: [&str; 6] = ["OFF", "TRACE", "DEBUG", "INFO", "WARNING", "ERROR"];
+
+impl Level {
+    /// Returns the string representation of the `Level`.
+    ///
+    /// This returns the same string as the `fmt::Display` implementation.
+    pub fn as_str(&self) -> &'static str {
+        LOG_LEVEL_NAMES[*self as usize]
+    }
+}
+
+impl Display for Level {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}

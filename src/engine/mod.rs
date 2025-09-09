@@ -26,9 +26,57 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+mod default;
+
+pub trait Engine:
+    crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer + Sync
+{
+}
+impl<T: crate::logger::Logger + crate::profiler::Profiler + crate::trace::Tracer + Sync> Engine
+    for T
+{
+}
+
+static ENGINE_INIT_FLAG: AtomicBool = AtomicBool::new(false);
+
+static mut ENGINE: &dyn Engine = &default::DefaultDebugger {};
+
+pub fn get() -> &'static dyn Engine {
+    unsafe { ENGINE }
+}
+
+pub fn set(engine: &'static dyn Engine) -> bool {
+    let flag = ENGINE_INIT_FLAG.load(Ordering::Relaxed);
+    if flag {
+        return false;
+    }
+    unsafe { ENGINE = engine };
+    ENGINE_INIT_FLAG.store(true, Ordering::Relaxed);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::trace::span::Id;
+    use std::num::NonZeroU32;
+
+    #[test]
+    fn basic() {
+        crate::engine::set(&crate::engine::default::DefaultDebugger {});
+        assert!(!crate::engine::set(
+            &crate::engine::default::DefaultDebugger {}
+        ));
+    }
+
+    #[test]
+    fn after_use() {
+        crate::engine::get().span_exit(Id::new(unsafe { NonZeroU32::new_unchecked(1) }, unsafe {
+            NonZeroU32::new_unchecked(1)
+        }));
+        assert!(!crate::engine::set(
+            &crate::engine::default::DefaultDebugger {}
+        ));
+    }
+}

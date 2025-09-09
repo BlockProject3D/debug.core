@@ -26,9 +26,20 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+use crate::field::Field;
+use crate::trace::span::{Callsite, Id, Span};
+use std::num::NonZeroU32;
+
+pub trait Tracer {
+    fn register_callsite(&self, callsite: &'static Callsite) -> NonZeroU32;
+    fn span_create(&self, callsite: NonZeroU32, fields: &[Field]) -> NonZeroU32;
+    fn span_enter(&self, id: Id);
+    fn span_record(&self, id: Id, fields: &[Field]);
+    fn span_exit(&self, id: Id);
+    fn span_destroy(&self, id: Id);
+}
+
+pub trait Trace {
+    type Output;
+    fn trace(self, span: Span) -> Self::Output;
+}

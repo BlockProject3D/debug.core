@@ -26,9 +26,16 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-pub mod engine;
-pub mod field;
-pub mod logger;
-pub mod profiler;
-pub mod trace;
-pub mod util;
+#[macro_export]
+macro_rules! profiler_section_start {
+    ($name: ident $(: $parent: ident)?, $level: expr, $({$($field: tt)*})*) => {
+        static $name: $crate::profiler::section::Section = $crate::profiler::section::Section::new(stringify!($name), $crate::location!(), $level)
+            $(.set_parent(&$parent))?;
+        let _section = $name.enter($crate::field::FieldSet::new([$($crate::field!($($field)*),)*]));
+    };
+    ($name: ident $(: $parent: ident)?, $level: expr) => {
+        static $name: $crate::profiler::section::Section = $crate::profiler::section::Section::new(stringify!($name), $crate::location!(), $level)
+            $(.set_parent(&$parent))?;
+        let _section = $name.enter($crate::field::FieldSet::new([]));
+    };
+}
