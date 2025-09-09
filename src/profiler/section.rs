@@ -55,7 +55,7 @@ pub struct Entered<'a, const N: usize> {
     fields: FieldSet<'a, N>,
 }
 
-impl<'a, const N: usize> Drop for Entered<'a, N> {
+impl<const N: usize> Drop for Entered<'_, N> {
     fn drop(&mut self) {
         let end = CUR_TIME.with(|v| v.elapsed().as_nanos() as _);
         crate::engine::get().section_record(self.id, self.start, end, self.fields.as_ref());
@@ -102,7 +102,7 @@ impl Section {
         self.parent
     }
 
-    pub fn get_id(&'static self) -> &NonZeroU32 {
+    pub fn get_id(&'static self) -> &'static NonZeroU32 {
         self.id
             .get_or_init(|| crate::engine::get().section_register(self))
     }

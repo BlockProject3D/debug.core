@@ -82,7 +82,7 @@ impl Callsite {
         self.name
     }
 
-    pub fn get_id(&'static self) -> &NonZeroU32 {
+    pub fn get_id(&'static self) -> &'static NonZeroU32 {
         self.id
             .get_or_init(|| crate::engine::get().register_callsite(self))
     }

@@ -39,8 +39,8 @@ pub enum FieldValue<'a> {
     Boolean(bool),
 }
 
-impl<'a> Display for FieldValue<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Display for FieldValue<'_> {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             FieldValue::Int(v) => write!(f, "{}", v),
             FieldValue::UInt(v) => write!(f, "{}", v),

@@ -11,5 +11,3 @@ keywords = ["bp3d", "tracing"]
 categories = ["development-tools", "development-tools::debugging", "development-tools::profiling"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-#TODO: Implement features to disable profiler and other different components
