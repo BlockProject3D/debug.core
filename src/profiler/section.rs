@@ -1,4 +1,4 @@
-// Copyright (c) 2024, BlockProject 3D
+// Copyright (c) 2025, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -30,7 +30,7 @@ use crate::field::FieldSet;
 use crate::util::Location;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
-use bp3d_os::time::Instant;
+use super::instant::Instant;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]

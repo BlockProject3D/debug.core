@@ -1,6 +1,6 @@
 [package]
 name = "bp3d-debug"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Yuri Edward <yuri6037@outlook.com>"]
 edition = "2021"
 description = "Tracing subscriber implementations for use with BP3D software. Supports traditional logging through bp3d-logger and supports remote profiling through TCP."
@@ -13,4 +13,4 @@ categories = ["development-tools", "development-tools::debugging", "development-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bp3d-os = { version = "2.2.1", features = ["time"] }
+libc = "0.2"
