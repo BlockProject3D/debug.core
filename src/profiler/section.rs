@@ -28,9 +28,9 @@
 
 use crate::field::FieldSet;
 use crate::util::Location;
+use bp3d_os::time::Instant;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
-use bp3d_os::time::Instant;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
