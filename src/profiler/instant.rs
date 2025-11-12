@@ -35,10 +35,12 @@ use libc::{clock_gettime, timespec, CLOCK_MONOTONIC_RAW};
 use std::hash::Hash;
 use std::time::Duration;
 
+#[cfg(unix)]
 trait DurationNewUnchecked {
     unsafe fn new_unchecked(secs: u64, subsec_nanos: u32) -> Duration;
 }
 
+#[cfg(unix)]
 impl DurationNewUnchecked for Duration {
     unsafe fn new_unchecked(secs: u64, subsec_nanos: u32) -> Duration {
         const NANOS_PER_SEC: u32 = 1000000000;
