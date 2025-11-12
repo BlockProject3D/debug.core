@@ -26,11 +26,11 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+use super::instant::Instant;
 use crate::field::FieldSet;
 use crate::util::Location;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
-use super::instant::Instant;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
