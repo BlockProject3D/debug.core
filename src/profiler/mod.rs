@@ -1,4 +1,4 @@
-// Copyright (c) 2024, BlockProject 3D
+// Copyright (c) 2025, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -29,5 +29,6 @@
 mod interface;
 mod macros;
 pub mod section;
+mod instant;
 
 pub use interface::*;
