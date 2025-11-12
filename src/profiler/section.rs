@@ -30,7 +30,7 @@ use crate::field::FieldSet;
 use crate::util::Location;
 use std::num::NonZeroU32;
 use std::sync::OnceLock;
-use std::time::Instant;
+use bp3d_os::time::Instant;
 
 #[repr(u8)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
