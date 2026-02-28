@@ -1,4 +1,4 @@
-// Copyright (c) 2025, BlockProject 3D
+// Copyright (c) 2026, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -26,7 +26,7 @@
 // NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-use super::instant::Instant;
+use super::instant::get_time;
 use crate::field::FieldSet;
 use crate::util::Location;
 use std::num::NonZeroU32;
@@ -45,10 +45,6 @@ pub enum Level {
     Event = 2,
 }
 
-thread_local! {
-    static CUR_TIME: Instant = Instant::now();
-}
-
 pub struct Entered<'a, const N: usize> {
     id: NonZeroU32,
     start: u64,
@@ -57,7 +53,7 @@ pub struct Entered<'a, const N: usize> {
 
 impl<const N: usize> Drop for Entered<'_, N> {
     fn drop(&mut self) {
-        let end = CUR_TIME.with(|v| v.elapsed().as_nanos() as _);
+        let end = get_time();
         crate::engine::get().section_record(self.id, self.start, end, self.fields.as_ref());
     }
 }
@@ -111,7 +107,7 @@ impl Section {
         let id = self.get_id();
         Entered {
             id: *id,
-            start: CUR_TIME.with(|v| v.elapsed().as_nanos() as _),
+            start: get_time(),
             fields,
         }
     }
