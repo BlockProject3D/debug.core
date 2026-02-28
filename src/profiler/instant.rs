@@ -1,4 +1,4 @@
-// Copyright (c) 2025, BlockProject 3D
+// Copyright (c) 2026, BlockProject 3D
 //
 // All rights reserved.
 //
@@ -31,68 +31,27 @@
 
 #[cfg(unix)]
 use libc::{clock_gettime, timespec, CLOCK_MONOTONIC_RAW};
-#[cfg(unix)]
-use std::hash::Hash;
-use std::time::Duration;
-
-#[cfg(unix)]
-trait DurationNewUnchecked {
-    unsafe fn new_unchecked(secs: u64, subsec_nanos: u32) -> Duration;
-}
-
-#[cfg(unix)]
-impl DurationNewUnchecked for Duration {
-    unsafe fn new_unchecked(secs: u64, subsec_nanos: u32) -> Duration {
-        const NANOS_PER_SEC: u32 = 1000000000;
-        if subsec_nanos >= NANOS_PER_SEC {
-            unsafe { std::hint::unreachable_unchecked() }
-        }
-        Duration::new(secs, subsec_nanos)
-    }
-}
-
-#[cfg(unix)]
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-#[repr(transparent)]
-pub struct Instant(Duration);
+#[cfg(windows)]
+use std::sync::LazyLock;
+#[cfg(windows)]
+use std::time::Instant;
 
 #[cfg(windows)]
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[repr(transparent)]
-pub struct Instant(std::time::Instant);
-
-#[cfg(windows)]
-impl Instant {
-    #[inline(always)]
-    pub fn now() -> Self {
-        Self(std::time::Instant::now())
-    }
-
-    #[inline(always)]
-    pub fn elapsed(&self) -> Duration {
-        self.0.elapsed()
-    }
-}
+static CUR_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 #[cfg(unix)]
-impl Instant {
-    pub fn now() -> Self {
-        let mut t = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe { clock_gettime(CLOCK_MONOTONIC_RAW, &mut t) };
-        Self(unsafe { Duration::new_unchecked(t.tv_sec as _, t.tv_nsec as _) })
-    }
+#[inline(always)]
+pub fn get_time() -> u64 {
+    let mut other = timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    unsafe { clock_gettime(CLOCK_MONOTONIC_RAW, &mut other) };
+    (other.tv_sec as u64) * 1000000000 + (other.tv_nsec as u64)
+}
 
-    pub fn elapsed(&self) -> Duration {
-        let mut other = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        unsafe { clock_gettime(CLOCK_MONOTONIC_RAW, &mut other) };
-        // Need super slow code cause somehow CLOCK_MONOTONIC_RAW is randomly broken.
-        let a = unsafe { Duration::new_unchecked(other.tv_sec as _, other.tv_nsec as _) };
-        a - self.0
-    }
+#[cfg(windows)]
+#[inline(always)]
+pub fn get_time() -> u64 {
+    CUR_TIME.elapsed().as_nanos() as _
 }
